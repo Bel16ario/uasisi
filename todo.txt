@@ -1,0 +1,1 @@
+- Add setting to config for domain generation. Add option to automatically generate linspace or polar domain. 

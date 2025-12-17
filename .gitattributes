@@ -1,0 +1,50 @@
+#LF normalization
+* text=auto
+
+# C++ 
+*.cpp text diff=cpp
+*.hpp text diff=cpp
+*.h text diff=cpp
+*.c text diff=cpp
+*.cc text diff=cpp
+*.cxx text diff=cpp
+
+# CMake
+CMakeLists.txt text
+*.cmake text
+
+# Config
+*.yaml text
+*.yml text
+*.json text
+*.xml text
+*.toml text
+
+# Scripts
+*.sh text eol=lf
+*.bash text eol=lf
+*.py text eol=lf
+
+# Documentation
+*.md text
+*.txt text
+
+# Binaries
+*.so binary
+*.a binary
+*.o binary
+*.exe binary
+*.dll binary
+*.dylib binary
+
+# Images
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+
+# Data 
+*.h5 binary
+*.hdf5 binary
+*.mat binary
