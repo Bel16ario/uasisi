@@ -1,4 +1,5 @@
 build/
+tests/
 cmake-build-*/
 *.o
 *.a
@@ -39,7 +40,6 @@ venv/
 *.tmp
 *.bak
 *.orig
-core
 
 Thumbs.db
 .directory
