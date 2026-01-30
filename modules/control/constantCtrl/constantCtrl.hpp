@@ -25,7 +25,7 @@ class ConstantCtrl : public IControl{
     void connectOutputVector(const std::string& name, SpanwiseVec<std::vector<double>>* x) override; //For omega and delta
     void connectOutputAirfoil(const std::string& name, SpanwiseVec<airfoil>* x) override; //For airfoil data
     
-    void step(double t, double dt) override = {};
+    void step(double t, double dt) override = {}
 
     const std::string& getName() const override{return this->name;}
 
@@ -68,4 +68,4 @@ class ConstantCtrl : public IControl{
 
 }
 
-#ifndef
+#endif

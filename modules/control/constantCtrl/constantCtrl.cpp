@@ -192,5 +192,5 @@ void ConstantCtrl::setIType(const interpType& t){
 }
 
 namespace{
-static ModuleRegistration<uasisi::ConstantCtrl> registrationConstantCtrl("constantCtrl");
+static uasisi::ModuleRegistration<uasisi::ConstantCtrl> registrationConstantCtrl("constantCtrl");
 }

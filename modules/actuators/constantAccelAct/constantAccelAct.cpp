@@ -406,5 +406,5 @@ void ConstantAccelAct::setIType(const interpType& tNew){
 }
 
 namespace {
-static ModuleRegistration<uasisi::ConstantAccelAct> registrationConstantAccelAct("constantAccelAct");
+static uasisi::ModuleRegistration<uasisi::ConstantAccelAct> registrationConstantAccelAct("constantAccelAct");
 }

@@ -113,5 +113,5 @@ void ArbitraryOpt::setIType(const interpType& t){
 }
 
 namespace{
-static ModuleRegistration<uasisi::ArbitraryOpt> registrationArbitraryOpt("arbitraryOpt");
+static uasisi::ModuleRegistration<uasisi::ArbitraryOpt> registrationArbitraryOpt("arbitraryOpt");
 }

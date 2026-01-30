@@ -640,5 +640,5 @@ bool checkEdges(const std::vector<double>& x, const std::vector<double>& y, cons
 
 }
 namespace{
-static ModuleRegistration<uasisi::PhillipsPhy> registrationPhillipsPhy("phillipsPhy");
+static uasisi::ModuleRegistration<uasisi::PhillipsPhy> registrationPhillipsPhy("phillipsPhy");
 }

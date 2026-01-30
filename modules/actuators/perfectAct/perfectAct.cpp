@@ -515,5 +515,5 @@ void PerfectAct::setIType(const interpType& tNew){
 
 }
 namespace{
-static ModuleRegistration<uasisi::PerfectAct> registrationPerfectAct("perfectAct");
+static uasisi::ModuleRegistration<uasisi::PerfectAct> registrationPerfectAct("perfectAct");
 }

@@ -1,5 +1,6 @@
 #include "uasisi/core/orchestrator.hpp"
 #include <algorithm>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -125,7 +126,7 @@ void Orchestrator::step(double t, double dt){
 
 }
 
-void Orchestrator::createModule(const std::string& moduleName, const std::string& instanceName, size_t prio){
+void Orchestrator::createModule(const std::string& moduleName, const std::string& instanceName, size_t prio, std::function<void(IModule*)> configurator){
     if(this->isSet || this->isConnected || this->execOrderIsSet){
         throw std::runtime_error("Orchestrator already running, connected or module order has been frozen");
     }
@@ -139,9 +140,24 @@ void Orchestrator::createModule(const std::string& moduleName, const std::string
     }
     this->modules[instanceName] = ModuleFactory<IModule>::instance().create(moduleName); //Maybe later I can add module type to the registration information to allow the orchestrator to implement a method that returns all the modules of a specific type and thus in the main file, logic can be used to always pick one of a certain type. I do want to keep this architecture where the modules are created from IModule to allow for new module types without necessarily changing a lot of the core code. A module can even inherit directly from IModule.
     this->priorities[instanceName] = prio;
+    this->configurators[instanceName] = configurator;
 }
 
-void Orchestrator::connectSignal(const std::string signal&, const std::vector<std::string>& moduleNames, const std::string& outputModule){
+void Orchestrator::configureModules(){
+    if(this->isSet || this->isConnected){ //Some of the modules I made I think require configuration before connecting signals so I am putting this here even though it would probably make sense to change it.
+        throw std::runtime_error("Orchestrator already running/connected");
+    }
+    if(this->isConfigured){
+        throw std::runtime_error("Modules already configured");
+    }
+    for(const auto& [instanceName, configurator] : this->configurators){
+        configurator(this->modules[instanceName].get());
+        std::cout << "Module " << instanceName << " configured\n";
+    }
+    this->isConfigured = true;
+}
+
+void Orchestrator::connectSignal(const std::string& signal, const std::vector<std::string>& moduleNames, const std::string& outputModule){
     if(this->isConnected || this->isSet || !this->signalsFiltered){
         throw std::runtime_error("Orchestrator already connected/set");
     }

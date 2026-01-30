@@ -43,10 +43,10 @@ void PerfectSen::init(const Config& config){
                 throw std::runtime_error("Invalid type");
             }
         } else {
-            throw std::runtime_error("Module not connected properly")
+            throw std::runtime_error("Module not connected properly");
         }
     } else {
-        throw std::runtime_error("Module is not yet connected. Please validate before initalizing")
+        throw std::runtime_error("Module is not yet connected. Please validate before initalizing");
     }
 }
 
@@ -180,8 +180,8 @@ void PerfectSen::connectInputVector(const std::string& name, const SpanwiseVec<s
 
 void PerfectSen::step(double t, double dt){
     
-    if(this->isSet){
-        throw std::runtime_error("Module already initialized");
+    if(!this->isSet){
+        throw std::runtime_error("Module not initialized");
     }
     if(!this->dTypeIsSet || !this->iTypeIsSet){
         throw std::runtime_error("Error, Perfect Actuator Module not fully setup");
@@ -249,5 +249,5 @@ void PerfectSen::setIType(const interpType& tNew){
 }
 
 namespace{
-static usasisi::ModuleRegistration<uasisi::PerfectSen> registrationPerfectSen("perfectSen");
+static uasisi::ModuleRegistration<uasisi::PerfectSen> registrationPerfectSen("perfectSen");
 }

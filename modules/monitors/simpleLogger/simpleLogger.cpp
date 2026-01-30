@@ -297,5 +297,5 @@ void SimpleLogger::writeToDatasets(double t){
 }
 
 namespace{
-static ModuleRegistration<uasisi::SimpleLogger> registrationSimpleLogger("simpleLogger");
+static uasisi::ModuleRegistration<uasisi::SimpleLogger> registrationSimpleLogger("simpleLogger");
 }
