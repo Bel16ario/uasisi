@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <stdexcept>
+#include <string>
 
 namespace uasisi {
     
@@ -65,6 +66,9 @@ void Orchestrator::connectSystem(){ //Not sure if this is the fastest, most effi
                         nOutputSignals[compoundName] = 0;
                         break;
                     case SignalType::OUT:
+                        if(compoundName.length() == 3){
+                            throw std::runtime_error("Invalid signal request received from " + module->getName());
+                        }
                         nInputSignals[compoundName] = 0;
                         nOutputSignals[compoundName] = 1;
                         outputModules[compoundName] = instanceName;
@@ -77,9 +81,12 @@ void Orchestrator::connectSystem(){ //Not sure if this is the fastest, most effi
                it->second.push_back(instanceName); 
                 switch(signal.signalType()){ //Buffer not implemented yet
                     case SignalType::IN:
-                        nInputSignals[compoundName]++;;
+                        nInputSignals[compoundName]++;
                         break;
                     case SignalType::OUT:
+                        if(compoundName.length() == 3){
+                            throw std::runtime_error("Invalid signal request received from " + module->getName());
+                        }
                         nOutputSignals[compoundName]++;
                         outputModules[compoundName] = instanceName; //Overwrites since only one output allowed.
                         break;
@@ -88,6 +95,24 @@ void Orchestrator::connectSystem(){ //Not sure if this is the fastest, most effi
                         break;
                 }
             }
+        }
+    }
+    for(auto it = allSignals.begin(); it != allSignals.end(); ){
+        if(it->first.length() == 3){
+            for(auto it2 = allSignals.begin(); it2 != allSignals.end(); ){
+                if(it2->first.length() != 3 && it->first.substr(it->first.length() - 3) == it2->first.substr(it2->first.length() -3)){
+                    for(const std::string& val : it->second){
+                        if(std::find(it2->second.begin(), it2->second.end(), val) == it2->second.end()){
+                            nInputSignals[it2->first]++;
+                            it2->second.push_back(val);
+                        }
+                    }
+                }
+                it2++;
+            }
+            it = allSignals.erase(it);
+        } else {
+            it++;
         }
     }
     for(auto it = allSignals.begin(); it != allSignals.end(); ){
@@ -111,16 +136,24 @@ void Orchestrator::init(){ //I want to move the timestepping to the main file.
     }
     this->setExecOrder();
     for(const std::string& module : this->moduleOrder){
+        std::cout << "Validating " + module + "\n";
+        this->modules[module]->validateConnections();
+    }
+    for(const std::string& module : this->moduleOrder){
+        std::cout << "Initializing " + module + "\n";
         this->modules[module]->init();
     }
     this->isSet = true;
+    std::cout << "All modules initialized\n";
 }
 
 void Orchestrator::step(double t, double dt){
     if(!this->isSet || !this->isConnected || !this->isConfigured || !this->execOrderIsSet){
         throw std::runtime_error("Module not initialized");
     }
+    std::cout << std::to_string(t) <<": Stepping:\n";
     for(const std::string& module : this->moduleOrder){
+        std::cout << "\t Stepping " << module << "...\n";
         this->modules[module]->step(t, dt);
     }
 
@@ -138,7 +171,7 @@ void Orchestrator::createModule(const std::string& moduleName, const std::string
             std::runtime_error("A module with that priority already exists");
         }
     }
-    this->modules[instanceName] = ModuleFactory<IModule>::instance().create(moduleName); //Maybe later I can add module type to the registration information to allow the orchestrator to implement a method that returns all the modules of a specific type and thus in the main file, logic can be used to always pick one of a certain type. I do want to keep this architecture where the modules are created from IModule to allow for new module types without necessarily changing a lot of the core code. A module can even inherit directly from IModule.
+    this->modules[instanceName] = ModuleFactory<IModule>::call().create(moduleName); //Maybe later I can add module type to the registration information to allow the orchestrator to implement a method that returns all the modules of a specific type and thus in the main file, logic can be used to always pick one of a certain type. I do want to keep this architecture where the modules are created from IModule to allow for new module types without necessarily changing a lot of the core code. A module can even inherit directly from IModule.
     this->priorities[instanceName] = prio;
     this->configurators[instanceName] = configurator;
 }
@@ -180,7 +213,7 @@ void Orchestrator::connectSignal(const std::string& signal, const std::vector<st
             } else {
                 this->modules[name]->connectInputDouble(signalName, rawPtrDOB);
             }
-            std::cout << signalName << " connected to " + name;
+            std::cout << signalName << " connected to " + name << "\n";
         }
     } else if(dType == "VEC"){
         if(this->signalsVEC.find(signalName) != this->signalsVEC.end()){
@@ -199,7 +232,7 @@ void Orchestrator::connectSignal(const std::string& signal, const std::vector<st
             } else {
                 this->modules[name]->connectInputVector(signalName, rawPtrVEC);
             }
-            std::cout << signalName << " connected to " + name;
+            std::cout << signalName << " connected to " + name << "\n";
         }
     } else if(dType == "AIR"){
         if(this->signalsAIR.find(signalName) != this->signalsAIR.end()){
@@ -218,7 +251,7 @@ void Orchestrator::connectSignal(const std::string& signal, const std::vector<st
             } else {
                 this->modules[name]->connectInputAirfoil(signalName, rawPtrAIR);
             }
-            std::cout << signalName << " connected to " + name;
+            std::cout << signalName << " connected to " + name << "\n";
         }
     } else if(dType == "SCA"){
         if(this->signalsSCA.find(signalName) != this->signalsSCA.end()){
@@ -237,7 +270,7 @@ void Orchestrator::connectSignal(const std::string& signal, const std::vector<st
             } else {
                 this->modules[name]->connectInputScalar(signalName, rawPtrSCA);
             }
-            std::cout << signalName << " connected to " + name;
+            std::cout << signalName << " connected to " + name + "\n";
         }
     } else {
         throw std::runtime_error("Unknown data type for signal: " + signalName);
@@ -252,8 +285,8 @@ void Orchestrator::setExecOrder(){
     std::vector<size_t> prios;
     std::vector<size_t> idx;
     std::vector<std::string> names;
-    prios.resize(this->priorities.size());
-    idx.resize(this->priorities.size());
+    prios.reserve(this->priorities.size());
+    idx.reserve(this->priorities.size());
     this->moduleOrder.reserve(this->priorities.size());
 
     size_t i = 0;
@@ -270,6 +303,12 @@ void Orchestrator::setExecOrder(){
     }
 
     this->execOrderIsSet = true;
+    std::cout << "Run order computed\n";
+    for(const std::string& val : this->moduleOrder){
+        std::cout << val << ", "; //Later I should remove the comma from the last element. Cannot be asked right now
+    }
+    std::cout << "\n";
+
 }
 
 }

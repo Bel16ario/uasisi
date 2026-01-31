@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
 namespace uasisi {
 
@@ -11,7 +12,8 @@ ConstantAccelAct::ConstantAccelAct(){
  std::cout << "Constant Acceleration Actuator created\n";
 }
 // I really should implement a method for adding thickness. I remember in the perfect act module I dint want to because I felt like it was a little akward with respect to the method return type (void vs vector).
-void ConstantAccelAct::init(const Config& config){
+void ConstantAccelAct::init(){
+    
     
     if(this->isSet){
         throw std::runtime_error("Module already initialized");
@@ -21,7 +23,7 @@ void ConstantAccelAct::init(const Config& config){
     } else {
         throw std::runtime_error("Initial actuator state must be set");
     }
-    if(!this->dTypeIsSet || !this->iTypeIsSet || !this->maxPosIsSet || !this->maxVelIsSet || !this->maxAccelIsSet || !this->centerPosSet){
+    if(!this->dTypeIsSet || !this->iTypeIsSet || !this->maxPosIsSet || !this->maxVelIsSet || !this->maxAccelIsSet || !this->centerPosIsSet){
         throw std::runtime_error("Error, Constant Acceleration Actuator Module not fully setup");
     }
     if(this->isConnected){
@@ -29,7 +31,7 @@ void ConstantAccelAct::init(const Config& config){
             if(this->initialStateIsSet){
                 if(this->dType == DataType::DOB && this->z.size() == this->targetGeometryDOB->size()){
                     if(this->addThickness){
-                        if(!this->thicknessIsSet || this->thickness > 0 || this->z.size() < 3){
+                        if(!this->thicknessIsSet || !(this->thickness > 0) || this->z.size() < 3){
                             throw std::runtime_error("Module not configured for thickness");
                         }
                         std::vector<double> zThick;
@@ -41,26 +43,26 @@ void ConstantAccelAct::init(const Config& config){
                         zThick.reserve(2*this->z.size());
                         dataThick.reserve(2*this->z.size());
                         zThick.push_back(this->z[0]);
-                        dataThick.push_back(this->initialStateDOB[0]);
+                        dataThick.push_back(this->theta[0]);
                         zThick.push_back(zThick[0] + this->thickness);
-                        dataThick.push_back(this->initialStateDOB[0]);
+                        dataThick.push_back(this->theta[0]);
 
                         for(size_t i = 1; i < (z.size() - 1); i++){
                             zTemp += dz;
                             zThick.push_back(zTemp - this->thickness/2);
-                            dataThick.push_back(this->initialStateDOB[i]); //Check size fit on setter method
+                            dataThick.push_back(this->theta[i]); //Check size fit on setter method
                             zThick.push_back(zTemp + this->thickness/2);
-                            dataThick.push_back(this->initialStateDOB[i]);
+                            dataThick.push_back(this->theta[i]);
                         }
 
                         zThick.push_back(z[this->z.size()-1] - this->thickness);
                         zThick.push_back(z[this->z.size()-1]);
-                        dataThick.push_back(this->initialStateDOB[this->z.size() - 1]);
-                        dataThick.push_back(this->initialStateDOB[this->z.size() - 1]);
+                        dataThick.push_back(this->theta[this->z.size() - 1]);
+                        dataThick.push_back(this->theta[this->z.size() - 1]);
 
                         this->realGeometryDOB->set(zOut, uasisi::interpolate(zThick, dataThick, this->zOut, getInterpType(this->iType)));
                     } else {
-                        this->realGeometryDOB->set(zOut, uasisi::interpolate(this->z, this->initialStateDOB, this->zOut, getInterpType(this->iType)));
+                        this->realGeometryDOB->set(zOut, uasisi::interpolate(this->z, this->theta, this->zOut, getInterpType(this->iType)));
                     }
                 } else throw std::runtime_error("Invalid type or initial state size mismatch");
             } else { //Kind of undefined behaviour for the first step. The orchestrator should not step modules that depend on this one until this one has been stepped
@@ -88,7 +90,7 @@ std::vector<SignalInfo> ConstantAccelAct::declareSignals(){
 }
 
 void ConstantAccelAct::validateConnections(){
-    
+
     if(!this->dTypeIsSet){
         throw std::runtime_error("Validation failed. Make sure dType is set");
     }
@@ -98,30 +100,21 @@ void ConstantAccelAct::validateConnections(){
             if(this->inputs.size() != 1 || this->inputs[0].name() != "targetGeometry"){ 
                 throw std::runtime_error("Validation failed");
             }
+            this->tGeometryConnected = true;
         } else if (this->realGeometryDOB){ // Only output connected
             if(this->outputs.size() != 1 || this->outputs[0].name() != "realGeometry"){ 
                 throw std::runtime_error("Validation failed");
             }
+            this->rGeometryConnected = true;
         }
     } else {
         if(this->outputs.size() != 1 || this->inputs.size() != 1 || this->outputs[0].name() != "realGeometry" || this->inputs[0].name() != "targetGeometry"){ 
             throw std::runtime_error("Validation failed");
         }
+        this->tGeometryConnected = true;
+        this->rGeometryConnected = true;
     }
-    if(dType == DataType::DOB){//Again, it falls on the orchestrator to resize the vector passing the pointer
-        if(targetGeometryDOB){
-            if(!this->zIsSet || this->targetGeometryDOB->size() != this->z.size()){
-                throw std::runtime_error("Input size mismatch");
-            }
-            this->tGeometryConnected = true;
-        }
-        if(realGeometryDOB){
-            if(!this->zOutIsSet || this->realGeometryDOB->size() != this->zOut.size()){
-                throw std::runtime_error("Output size mismatch"); 
-            }
-            this->rGeometryConnected = true;
-        }
-    } else {
+    if(dType != DataType::DOB){
         throw std::runtime_error("Invalid data type");
     }
     this->isConnected = true;
@@ -184,7 +177,7 @@ void ConstantAccelAct::step(double t, double dt){ // I honestly think like these
                     minDeltaTheta = dt*this->omega[i] - 0.5*this->maxAccel[i];
                     stopDistance = std::abs((this->omega[i]*this->omega[i]*0.5)/this->maxAccel[i]);
                     if(stopDistance >= std::abs(posError)){
-                        deltaOmega = -std::copysign(std::min(this->maxAccel[i]*dt, std::abs(this->omega[i])), this->omega[i])
+                        deltaOmega = -std::copysign(std::min(this->maxAccel[i]*dt, std::abs(this->omega[i])), this->omega[i]);
                     } else {
                         deltaOmega = std::copysign(std::min(this->maxAccel[i]*dt, this->maxVel[i] - std::abs(this->omega[i])), std::abs(posError));
                     }
@@ -203,8 +196,8 @@ void ConstantAccelAct::step(double t, double dt){ // I honestly think like these
                 }
             }
             if(this->addThickness){
-                if(!this->thicknessIsSet || this->thickness > 0 || this->z.size() < 3){
-                    throw std::runtime_error("Module not configured for thickness")
+                if(!this->thicknessIsSet || !(this->thickness > 0) || this->z.size() < 3){
+                    throw std::runtime_error("Module not configured for thickness");
                 }
                 std::vector<double> zThick;
                 std::vector<double> dataThick;
@@ -349,7 +342,7 @@ void ConstantAccelAct::setTheta(const std::vector<double>& thetaNew){
         throw std::runtime_error("Size mismatch");
     }
     for(size_t i = 0; i < this->z.size(); i++){
-        if(thetaNew[i] < this->centerPos[i] - this->maxPos[i] || thetaNew[i] > thetaCenter[i] + this->maxPos[i]){
+        if(thetaNew[i] < this->centerPos[i] - this->maxPos[i] || thetaNew[i] > this->centerPos[i] + this->maxPos[i]){
             throw std::runtime_error("Invalid vector. Angle out of range found");
         }
     }
@@ -364,7 +357,7 @@ void ConstantAccelAct::setOmega(const std::vector<double>& omegaNew){
     if(!this->zIsSet){
         throw std::runtime_error("Actuator position vector must be set first");
     }
-    if(this->z.size() != thetaNew.size()){
+    if(this->z.size() != omegaNew.size()){
         throw std::runtime_error("Size mismatch");
     }
     for(size_t i = 0; i < this->z.size(); i++){
@@ -381,10 +374,9 @@ void ConstantAccelAct::setPosTol(const double& tolNew){
         throw std::runtime_error("Module already connected");
     }
     if(tolNew < 0){
-        throw std:.runtime_error("Tolerance must be set as a positive double");
+        throw std::runtime_error("Tolerance must be set as a positive double");
     }
-    this->thickness = tNew;
-    this->zIsSet = true;
+    this->posTol = tolNew;
 }
 
 void ConstantAccelAct::setThickness(const double& tNew){
@@ -392,7 +384,14 @@ void ConstantAccelAct::setThickness(const double& tNew){
         throw std::runtime_error("Module already connected");
     }
     this->thickness = tNew;
-    this->zIsSet = true;
+    this->thicknessIsSet = true;
+}
+
+void ConstantAccelAct::setAddThickness(bool cond){
+    if(this->isSet || this->isConnected){
+        throw std::runtime_error("Module already connected");
+    }
+    this->addThickness = cond;
 }
 
 void ConstantAccelAct::setIType(const interpType& tNew){

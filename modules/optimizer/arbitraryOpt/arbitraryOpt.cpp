@@ -12,7 +12,7 @@ ArbitraryOpt::ArbitraryOpt(){
 
 }
 
-void ArbitraryOpt::init(const Config& config){ // 
+void ArbitraryOpt::init(){ // 
     
     if(this->isSet){
         throw std::runtime_error("Module already initialized");

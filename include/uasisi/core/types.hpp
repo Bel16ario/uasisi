@@ -138,15 +138,15 @@ struct point{
 
 };
 
-point operator*(double k, const point& p) {
+inline point operator*(double k, const point& p) {
     return p * k;
 }
 
-double dot(const point& p1, const point& p2){
+inline double dot(const point& p1, const point& p2){
     return p1.x*p2.x + p1.y*p2.y + p1.z*p2.z;
 }
 
-point cross(const point& p1, const point& p2){
+inline point cross(const point& p1, const point& p2){
     return point{(p1.y*p2.z - p1.z*p2.y), (p1.z*p2.x - p1.x*p2.z), (p1.x*p2.y - p1.y*p2.x), p1.idx};
 }
 
@@ -154,12 +154,12 @@ class FlightConditions{//Should I put this class in modules.hpp or types.hpp so 
 
     public:
 
-    FlightConditions(){this->comp();}
+    FlightConditions() = default;
     ~FlightConditions() = default;
 
     void compThetaAndP();
     void compDenAndVisc();
-    void comp(){this->compDenAndVisc();}
+    void comp();
 
     void setVInf(const point& vNew); //set vInf AND alpha
     void setAltitude(const double& hNew); //Check hNew >= 0
@@ -210,11 +210,13 @@ public:
 
     void                            setName(const std::string& newName){this->foilName = newName; this->hasName = true;}
 
-    double                          getChord(){return this->chord;}
+    double                          getChord() const {return this->chord;}
     void                            setChord(double c){this->chord = c;}
-    point                           getAttatchmentPoint(){return this->attatchmentPoint;}
+    point                           getAttatchmentPoint() const {return this->attatchmentPoint;}
     void                            setAttatchmentPoint(point p){this->attatchmentPoint = p;}
-    point                           getPoint(int id);
+    void                            setPoints(const std::vector<point>& pVec){this->points = pVec;}
+    point                           getPoint(int id) const;
+    void                            pushPoint(point p){this->points.push_back(p);}
 
     int                             check(); //add later. check no repeated idx and points in correct order
     void                            heal(); //order points / maybe idx
@@ -245,18 +247,19 @@ public:
 
     size_t                              size() const {return this->z.size();}
 
-    const std::vector<double>&          coords() const {return this->z; this->coordsHaveBeenRead = true;}
+    const std::vector<double>&          coords() const {this->coordsHaveBeenRead = true; return this->z;} //Add coords have been read flag logic to eigen getters
     Eigen::Map<const Eigen::VectorXd>   coordsAsEigen() const {return uasisi::vecAsEigen(this->z);}
     Eigen::Map<Eigen::VectorXd>         coordsAsEigenMutable() {return uasisi::vecAsEigenMutable(this->z);}
     
-    const std::vector<T>&               SWData() const {return this->data; this->dataHasBeenRead = true;}
+    const std::vector<T>&               SWData() const {this->dataHasBeenRead = true; return this->data;}
     Eigen::Map<const Eigen::VectorXd>   SWDataAsEigen() const; //Only for double
     Eigen::Map<Eigen::VectorXd>         SWDataAsEigenMutable(); //more eigen converters could be added for variables of structs using the extractvariable function but seems unimportant for now. Ideally this class supports any data type but for now, only doubles, vectors of doubles and airfoils are supported.
-    Eigen::VectorXd                     SWDataMemberAsEigen(double (T::*getter)() const) const; //for airfoil. At the moment it is hardcoded
+    template<typename U = T, typename = std::enable_if_t<std::is_same_v<U, airfoil>>>
+    Eigen::VectorXd                      SWDataMemberAsEigen(double (U::*getter)() const) const; //for airfoil. At the moment it is hardcoded
     Eigen::VectorXd                     SWDataRowAsEigen(size_t idx) const; //For vector
     
-    bool                                hasNewData(){return !this->dataHasBeenRead;} 
-    bool                                hasNewCoords(){return !this->coordsHaveBeenRead;} //I really should have made separate setters but now a lot of code uses the monolithic setter. At least it prevents size mismatches. 
+    bool                                hasNewData() const {return !this->dataHasBeenRead;} 
+    bool                                hasNewCoords() const {return !this->coordsHaveBeenRead;} //I really should have made separate setters but now a lot of code uses the monolithic setter. At least it prevents size mismatches. 
 
     T&                                  operator[](size_t i){return this->data[i];} 
     const T&                            operator[](size_t i) const {return this->data[i];}
@@ -331,15 +334,12 @@ private:
     bool                                DataBoundsSet = false;
     bool                                isSet = false;
 
-    bool                                coordsHaveBeenRead = false;
-    bool                                dataHasBeenRead = false;
+    mutable bool                        coordsHaveBeenRead = false;
+    mutable bool                        dataHasBeenRead = false;
 
 };
 
-void FlightConditions::compThetaAndP(){
-    if(!this->altitudeIsSet){
-        std::cout << "Warning, flight conditions object not fully set-up yet. Using defaults";
-    }
+inline void FlightConditions::compThetaAndP(){
     if(this->altitude <= 11000.0){
         this->theta0 = 288.15 - 0.0065*this->altitude;
         this->P0 = 101325.0 * std::pow((this->theta0 / 288.15), (-9.80665 / 1.865825));
@@ -349,43 +349,48 @@ void FlightConditions::compThetaAndP(){
     }
 }
 
-void FlightConditions::compDenAndVisc(){
-    if(!this->altitudeIsSet){
-        std::cout << "Warning, flight conditions object not fully set-up yet. Using defaults";
-    }
+inline void FlightConditions::compDenAndVisc(){
     this->compThetaAndP();
     this->rho0 = this->P0 / (this->theta0 * 287.05);
     this->mu0 = 1.716e-5 * std::pow(this->theta0 / 288.15, 1.5) * (288.15 + 110.4) / (this->theta0 + 110.4);
 }
 
-void FlightConditions::setAltitude(const double& hNew){
+inline void FlightConditions::comp(){
+    if(!this->altitudeIsSet || !this->vInfIsSet){
+        std::cout << "WARNING: Flight conditions not set. Using defaults\n";
+    }
+    this->compDenAndVisc();
+}
+
+inline void FlightConditions::setAltitude(const double& hNew){
     if(hNew < 0.0 || hNew > 20000.0){
         throw std::runtime_error("Invalid altitude. Must be between 0 and 20K meters");
     }
     this->altitude = hNew;
-    this->comp();
+    this->altitudeIsSet = true;
 }
 
-void FlightConditions::setVInf(const point& vNew){
+inline void FlightConditions::setVInf(const point& vNew){
     this->vInf = vNew;
     this->alpha = std::atan(this->vInf.y/this->vInf.x);
+    this->vInfIsSet = true;
 }
 
-point airfoil::getPoint(int id){
+inline point airfoil::getPoint(int id) const {
     for(const point& p : this->points){
         if(p.idx == id) return p;
     }
     throw std::runtime_error("Point not in section");
 }
 
-bool airfoil::pointIsInSection(int id) const {
+inline bool airfoil::pointIsInSection(int id) const {
     for(const point& p : this->points){
         if(p.idx == id) return true;
     }
     return false;
 }
 
-void airfoil::generate(size_t n){ //generates double the amount of points
+inline void airfoil::generate(size_t n){ //generates double the amount of points
     if(!this->hasName) throw std::runtime_error("A name is required to generate points");
     std::string foil = this->name();
     if(!(foil.length() == 8 || foil.length() == 9) || foil.substr(0, 4) != "NACA") throw std::runtime_error("Only 4 and 5 digit NACA foils supported in the NACAXXXX or NACAXXXXX format");
@@ -459,7 +464,7 @@ void airfoil::generate(size_t n){ //generates double the amount of points
     this->points = sPoints;
 }
 
-bool pointIsBounded(const std::vector<airfoil>& data, const std::vector<double>& z, double zp, int idx){
+inline bool pointIsBounded(const std::vector<airfoil>& data, const std::vector<double>& z, double zp, int idx){
     if(z.size() != data.size()){
         throw std::runtime_error("Coordinate and data vector sizes do not match");
     }
@@ -857,15 +862,11 @@ Eigen::Map<Eigen::VectorXd> SpanwiseVec<T>::SWDataAsEigenMutable(){
         throw std::runtime_error("This method is only for scalar valued vectors. Please use the correct method");
     }
 }
-
 template<typename T>
-Eigen::VectorXd SpanwiseVec<T>::SWDataMemberAsEigen(double (T::*getter)() const) const{
-    if constexpr (std::is_same_v<T, airfoil>) {
-        std::vector<double> member = extractMemberVector(this->SWData(), getter);
-        return vecAsEigen(member);
-    } else {
-        throw std::runtime_error("This method is only for objects. Please use the correct method");
-    }
+template<typename U, typename>
+Eigen::VectorXd SpanwiseVec<T>::SWDataMemberAsEigen(double (U::*getter)() const) const{
+    std::vector<double> member = extractMemberVector(this->SWData(), getter);
+    return vecAsEigen(member);
 }
 
 template<typename T>
@@ -878,7 +879,7 @@ Eigen::VectorXd SpanwiseVec<T>::SWDataRowAsEigen(size_t idx) const{
     }
 }
 
-const gsl_interp_type* getInterpType(interpType t){
+inline const gsl_interp_type* getInterpType(interpType t){
     switch(t){
         case interpType::LIN:
             return gsl_interp_linear;
@@ -977,7 +978,7 @@ std::vector<T> interpolate(const std::vector<double>& z, const std::vector<T>& d
         std::vector<T> nData;
         nData.reserve(data.size());
 
-        for(const std::vector<T>& vec : data){
+        for(const T& vec : data){
             nData.push_back(interpolate(z, vec, zp, t));
         }
 
@@ -1006,7 +1007,7 @@ std::vector<T> interpolate(const std::vector<double>& z, const std::vector<T>& d
         tZp.reserve(1);
 
         for(size_t i = 0; i < z.size(); i++){
-            for(const point& p : data[i].points){
+            for(const point& p : data[i].coords()){
                 pointIDset.insert(p.idx);
             }
         }
@@ -1033,7 +1034,7 @@ std::vector<T> interpolate(const std::vector<double>& z, const std::vector<T>& d
                     tPoints = interpolate(tZ, tData, tZp, t);
                     tPoint = tPoints[0];
                     tPoint.idx = val;
-                    nData[i].points.push_back(tPoint); 
+                    nData[i].pushPoint(tPoint); 
                 }
                 tZp.clear();
             }
@@ -1055,9 +1056,9 @@ std::vector<T> interpolate(const std::vector<double>& z, const std::vector<T>& d
         std::vector<T> nData;
         nData.reserve(zp.size());
         
-        std::vector<T> xData = extractVariableVector(data, &point::x);
-        std::vector<T> yData = extractVariableVector(data, &point::y);
-        std::vector<T> zData = extractVariableVector(data, &point::z);
+        std::vector<double> xData = extractVariableVector(data, &point::x);
+        std::vector<double> yData = extractVariableVector(data, &point::y);
+        std::vector<double> zData = extractVariableVector(data, &point::z);
 
         gsl_interp_accel *accX = gsl_interp_accel_alloc();
         gsl_spline *splineX = gsl_spline_alloc(t, z.size());
@@ -1136,21 +1137,21 @@ std::vector<T> extractRowVector(const std::vector<std::vector<T>>& objects, size
 
 }
 
-Eigen::Map<const Eigen::VectorXd> vecAsEigen(const std::vector<double>& x){
+inline Eigen::Map<const Eigen::VectorXd> vecAsEigen(const std::vector<double>& x){
     return Eigen::Map<const Eigen::VectorXd>(x.data(), x.size());
 }
 
-Eigen::Map<Eigen::VectorXd> vecAsEigenMutable(std::vector<double>& x){
+inline Eigen::Map<Eigen::VectorXd> vecAsEigenMutable(std::vector<double>& x){
     return Eigen::Map<Eigen::VectorXd>(x.data(), x.size());
 }
 
-std::vector<double> EigenAsVec(const Eigen::VectorXd& x){
+inline std::vector<double> EigenAsVec(const Eigen::VectorXd& x){
     std::vector<double> vec;
     vec.assign(x.data(), x.data() + x.size());
     return vec;
 }
 
-void updateVecWithEigen(const Eigen::VectorXd& x, std::vector<double>& vec){// non const reference is intended
+inline void updateVecWithEigen(const Eigen::VectorXd& x, std::vector<double>& vec){// non const reference is intended
     vec.assign(x.data(), x.data() + x.size()); //I think this is correct but maybe I have to clear the vector first?
 }
 

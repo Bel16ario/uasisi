@@ -16,7 +16,7 @@ namespace uasisi{
 
 struct signalDatasetDOB{
 
-    SpanwiseVec<double>* dataPtr = nullptr;
+    const SpanwiseVec<double>* dataPtr = nullptr;
     HighFive::DataSet coordsDataset;
     HighFive::DataSet dataDataset;
     size_t size;
@@ -26,7 +26,7 @@ struct signalDatasetDOB{
 
 struct signalDatasetVEC{
 
-    SpanwiseVec<std::vector<double>>* dataPtr = nullptr;
+    const SpanwiseVec<std::vector<double>>* dataPtr = nullptr;
     HighFive::DataSet coordsDataset;
     HighFive::DataSet dataDataset;
     size_t size; //I am adding these vars to ensure weird resizing does not ocur if the vectors are somehow resized when the module is running.
@@ -37,7 +37,7 @@ struct signalDatasetVEC{
 
 struct signalDatasetSCA{
 
-    double* dataPtr = nullptr;
+    const double* dataPtr = nullptr;
     HighFive::DataSet dataDataset;
 
 };
@@ -49,7 +49,7 @@ class SimpleLogger : public IMonitor{ //Does not support airfoil input right now
     SimpleLogger();
     ~SimpleLogger() override = default;
 
-    void init(const Config& config) override;
+    void init() override;
     std::vector<SignalInfo> declareSignals() override;
     void validateConnections() override;
 

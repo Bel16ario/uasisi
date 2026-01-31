@@ -21,7 +21,7 @@ class PhillipsPhy : public IPhysics{
     PhillipsPhy();
     ~PhillipsPhy() override = default;
 
-    void init(const Config& config) override;
+    void init() override;
     std::vector<SignalInfo> declareSignals() override;
     void validateConnections() override;
 
@@ -47,7 +47,9 @@ class PhillipsPhy : public IPhysics{
     void setTwist(const SpanwiseVec<double>& twistNew);
     void setDefaultFoil(const std::string& nameNew);
     void setDefaultTwist(double twistNew);
+    void setDefaultChord(double chordNew);
     void setTolerance(double tolNew);
+    void setNPoints(size_t nNew);
 
     private:
 
@@ -71,6 +73,8 @@ class PhillipsPhy : public IPhysics{
     std::vector<double> lSlope;
     std::string defaultFoil = "NACA2412";
     double defaultTwist = 0.0;
+    double defaultChord = 1.0;
+    size_t nPoints = 100;
 
     FlightConditions fConds;
     std::vector<double> Re;
@@ -122,8 +126,9 @@ class PhillipsPhy : public IPhysics{
     DataType dType = DataType::DOB;
     interpType iType;
 
-    SpanwiseVec<double>* realTwist = nullptr;
-    SpanwiseVec<airfoil>* realGeometry = nullptr;
+    const SpanwiseVec<double>* realTwist = nullptr;
+    const SpanwiseVec<airfoil>* realGeometry = nullptr;
+
     SpanwiseVec<double>* realLift = nullptr;
     double* realTotalLift = nullptr;
     double* realRollingMoment = nullptr;

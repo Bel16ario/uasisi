@@ -16,7 +16,7 @@ class ConstantCtrl : public IControl{
     ConstantCtrl();
     ~ConstantCtrl() override = default;
 
-    void init(const Config& config) override;
+    void init() override;
     std::vector<SignalInfo> declareSignals() override;
     void validateConnections() override;
 
@@ -25,12 +25,12 @@ class ConstantCtrl : public IControl{
     void connectOutputVector(const std::string& name, SpanwiseVec<std::vector<double>>* x) override; //For omega and delta
     void connectOutputAirfoil(const std::string& name, SpanwiseVec<airfoil>* x) override; //For airfoil data
     
-    void step(double t, double dt) override = {}
+    void step(double t, double dt) override {}
 
     const std::string& getName() const override{return this->name;}
 
     void setZ(const std::vector<double>& zNew);
-    void setZOut(const std::vector<double>& zNew);
+    void setActCoords(const std::vector<double>& zNew);
     
     void setSData(const std::vector<double>& sDataNew);
     void setVData(const std::vector<std::vector<double>>& vDataNew);
@@ -44,7 +44,7 @@ class ConstantCtrl : public IControl{
     std::string name = "constantCtrl";
         
     std::vector<double> z;
-    std::vector<double> zOut;
+    std::vector<double> actCoords;
 
     std::vector<double> sData;
     std::vector<std::vector<double>> vData;
@@ -54,7 +54,7 @@ class ConstantCtrl : public IControl{
     interpType iType;
     //In other, more complex modules, individual connect flags might be needed for each signal
     bool zIsSet = false;
-    bool zOutIsSet = false;
+    bool actCoordsAreSet = false;
     bool dataIsSet = false;
     bool dTypeIsSet = false;
     bool iTypeIsSet = false;

@@ -8,7 +8,7 @@ PerfectAct::PerfectAct(){
  std::cout << "Perfect Actuator created\n";
 }
 
-void PerfectAct::init(const Config& config){
+void PerfectAct::init(){
     
     if(this->isSet){
         throw std::runtime_error("Module already initialized");
@@ -173,29 +173,29 @@ void PerfectAct::validateConnections(){
     if(dType == DataType::DOB){
         if(targetGeometryDOB) this->tGeometryConnected = true;
         if(realGeometryDOB){
-            if(!this->zOutIsSet || this->realGeometryDOB->size() != this->zOut.size()){
-                throw std::runtime_error("Output size mismatch"); 
+            if(!this->zOutIsSet){
+                throw std::runtime_error("zOut not set"); 
             }
             this->rGeometryConnected = true;
         }
     } else if(dType == DataType::VEC){
         if(targetGeometryVEC) this->tGeometryConnected = true;
         if(realGeometryVEC){
-            if(!this->zOutIsSet || this->targetGeometryVEC->size() != this->zOut.size()){
-                throw std::runtime_error("Output size mismatch"); 
+            if(!this->zOutIsSet){
+                throw std::runtime_error("zOut not set"); 
             }
             this->rGeometryConnected = true;
         }
-    } else if(dType = DataType::AIR){
+    } else if(dType == DataType::AIR){
         if(targetGeometryDOB){
-            if(!this->zIsSet || this->targetGeometryDOB->size() != this->z.size()){
-                throw std::runtime_error("Input size mismatch");
+            if(!this->zOutIsSet){
+                throw std::runtime_error("zOut not set"); 
             }
             this->tGeometryConnected = true;
         }
         if(realGeometryAIR){
-            if(!this->zOutIsSet || this->targetGeometryAIR->size() != this->zOut.size()){
-                throw std::runtime_error("Output size mismatch"); 
+            if(!this->zOutIsSet){
+                throw std::runtime_error("zOut not set"); 
             }
             this->rGeometryConnected = true;
         }
@@ -319,7 +319,7 @@ void PerfectAct::step(double t, double dt){
         if(this->dType == DataType::DOB){
             if(this->addThickness){
                 if(!this->thicknessIsSet || this->thickness > 0 || this->z.size() < 3){
-                    throw std::runtime_error("Module not configured for thickness")
+                    throw std::runtime_error("Module not configured for thickness");
                 }
                 std::vector<double> zThick;
                 std::vector<double> dataThick;
@@ -392,7 +392,7 @@ void PerfectAct::step(double t, double dt){
             } else {
                 this->realGeometryVEC->set(zOut, uasisi::interpolate(this->z, this->initialStateVEC, this->zOut, getInterpType(this->iType))); //
             }
-        } else if(this->dType == DataTYpe::AIR){
+        } else if(this->dType == DataType::AIR){
             if(this->addThickness){
                 if(!this->thicknessIsSet || this->thickness > 0 || this->z.size() < 3){
                     throw std::runtime_error("Module not configured for thickness");
@@ -466,7 +466,7 @@ void PerfectAct::setInitialStateDOB(const std::vector<double>& x0New){
         throw std::runtime_error("Module already connected");
     }
     if(!this->dTypeIsSet || this->dType != DataType::DOB || this->initialStateIsSet){
-        throw std::runtime_error("Data type mismatch or module already has an initial state")
+        throw std::runtime_error("Data type mismatch or module already has an initial state");
     }
     this->initialStateDOB = x0New;
     this->initialStateIsSet = true;
@@ -477,7 +477,7 @@ void PerfectAct::setInitialStateVEC(const std::vector<std::vector<double>>& x0Ne
         throw std::runtime_error("Module already connected");
     }
     if(!this->dTypeIsSet || this->dType != DataType::VEC || this->initialStateIsSet){
-        throw std::runtime_error("Data type mismatch or module already has an initial state")
+        throw std::runtime_error("Data type mismatch or module already has an initial state");
     }
     this->initialStateVEC = x0New;
     this->initialStateIsSet = true;
@@ -488,13 +488,13 @@ void PerfectAct::setInitialStateAIR(const std::vector<airfoil>& x0New){
         throw std::runtime_error("Module already connected");
     }
     if(!this->dTypeIsSet || this->dType != DataType::AIR || this->initialStateIsSet){
-        throw std::runtime_error("Data type mismatch or module already has an initial state")
+        throw std::runtime_error("Data type mismatch or module already has an initial state");
     }
     this->initialStateAIR = x0New;
     this->initialStateIsSet = true;
 }
 
-void PerfectAct::setDType(const DataTYpe& tNew){ //My vision for this simulator is that on the main source file, the configuration will stay somewhat constant and there will be helper setup functions for each modules which call all the appropriate setters.
+void PerfectAct::setDType(const DataType& tNew){ //My vision for this simulator is that on the main source file, the configuration will stay somewhat constant and there will be helper setup functions for each modules which call all the appropriate setters.
     if(this->isSet || this->isConnected){
         throw std::runtime_error("Module already connected");
     }

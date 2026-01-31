@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <Eigen/Dense>
+#include <string>
 #include <vector>
 
 namespace uasisi{
@@ -12,7 +13,7 @@ PhillipsPhy::PhillipsPhy(){
     std::cout << "Phillips' LLT Physics module created\n";
 }
 
-void PhillipsPhy::init(const Config& config){
+void PhillipsPhy::init(){
 
     if(this->isSet){
         throw std::runtime_error("Module already initialized");
@@ -37,6 +38,11 @@ void PhillipsPhy::init(const Config& config){
             std::fill(this->interpTwist.begin(), this->interpTwist.end(), this->defaultTwist);
             this->twistIsSet = true;
         }
+        if(!this->chordIsSet){//Provide chord 
+            this->chord.resize(this->zOut.size()-2);
+            std::fill(this->chord.begin(), this->chord.end(), this->defaultChord);
+            this->chordIsSet = true;
+        }
         this->refreshZ();
         this->refreshData();
         this->translateDomain();
@@ -56,6 +62,7 @@ void PhillipsPhy::init(const Config& config){
     } else { //No input or output
         std::cout << "WARNING: No input or output. Module will IDLE\n";
     }
+    this->isSet = true;
 
 }
 
@@ -203,20 +210,17 @@ void PhillipsPhy::step(double t, double dt){ //For complex airfoil variation, th
         this->computeLift();
     
     } else if(this->rGeometryIsConnected || this->rTwistIsConnected){ //Only input connected
-        std::cout << "WARNING: no output connected. Module will IDLE. Connect monitor to force computation";
+        std::cout << "WARNING: no output connected. Module will IDLE. Connect monitor to force computation\n";
     } else if(this->rLiftIsConnected || this->rTLiftIsConnected || this->rRMomentIsConnected){ //Only output connected
         throw std::runtime_error("No input connected. Cannot compute");
     } else { //No input or output
-        std::cout << "WARNING: No input or output. Module will IDLE";
+        std::cout << "WARNING: No input or output. Module will IDLE\n";
     }
     
 
 }
 
 void PhillipsPhy::computeRe(){
-    if(!this->fCondsIsSet){
-        std::cout << "WARNING: flight conditions not set, using defaults";
-    }
     if(!this->chordIsSet){
         throw std::runtime_error("Chords need to be set before computing Reynolds' numbers");
     }
@@ -240,7 +244,7 @@ void PhillipsPhy::obtainPolars(){//For dev purposes just return constant for now
     }
     for(airfoil& val : this->interpGeo){
         if(val.size() == 0){
-            val.generate();
+            val.generate(this->nPoints);
         }
     }
     this->lSlope.resize(this->zOut.size() - 2);
@@ -249,6 +253,7 @@ void PhillipsPhy::obtainPolars(){//For dev purposes just return constant for now
         this->lSlope[i] = 6.5317;
         this->alpha0L(i) = -0.0375;
     }
+    this->polarsAreSet = true;
 
 }
 
@@ -445,7 +450,9 @@ void PhillipsPhy::readTwist(){
     this->interpTwist.pop_back();
     this->interpTwist.erase(this->interpTwist.begin());
     this->interpTwistEigen = uasisi::vecAsEigen(this->interpTwist);
-    this->computeB(); // This might be computed twice sometimes but I will take the sacrifice in exchange for better efficiency when run without airfoil input.
+    if(this->isSet){
+        this->computeB(); // This might be computed twice sometimes but I will take the sacrifice in exchange for better efficiency when run without airfoil input.
+    }
     this->twistIsSet = true;
 }
 
@@ -484,8 +491,10 @@ void PhillipsPhy::setZOut(const std::vector<double>& zNew){
             throw std::runtime_error("Points in vector are not ordered");
         }
     }
+    this->span = zNew.back() - zNew.front();
     this->zOut = zNew;
     this->zOutIsSet = true;
+    this->spanIsSet = true;
 }
 
 void PhillipsPhy::setAlpha0(const SpanwiseVec<double>& alphaNew){
@@ -591,6 +600,13 @@ void PhillipsPhy::setDefaultTwist(double twistNew){
     this->defaultTwist = twistNew;
 }
 
+void PhillipsPhy::setDefaultChord(double chordNew){
+    if(this->isSet || this->isConnected){
+        throw std::runtime_error("Module already connected");
+    }
+    this->defaultChord = chordNew;
+}
+
 void PhillipsPhy::setTolerance(double tolNew){
     if(this->isSet || this->isConnected){
         throw std::runtime_error("Module already connected");
@@ -599,6 +615,13 @@ void PhillipsPhy::setTolerance(double tolNew){
         throw std::runtime_error("Invalid or negative tolerance");
     }
     this->tolerance = tolNew;
+}
+
+void PhillipsPhy::setNPoints(size_t nNew){
+    if(this->isSet || this->isConnected){
+        throw std::runtime_error("Module already connected");
+    }
+    this->nPoints = nNew;
 }
 
 double trapz(const std::vector<double>& x, const std::vector<double>& y){

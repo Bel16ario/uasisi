@@ -10,12 +10,12 @@ ConstantCtrl::ConstantCtrl(){
 
 }
 
-void ConstantCtrl::init(const Config& config) {
+void ConstantCtrl::init() {
 
     if(this->isSet){
         throw std::runtime_error("Module already initialized");
     }
-    if(!this->zIsSet || !this->dataIsSet || !this->dTypeIsSet || !this->iTypeIsSet){
+    if(!this->zIsSet || !this->dataIsSet || !this->dTypeIsSet || !this->iTypeIsSet || !this->actCoordsAreSet){
         throw std::runtime_error("Error, Constant Control Module not fully setup");
     }
     if(this->isConnected){
@@ -23,20 +23,17 @@ void ConstantCtrl::init(const Config& config) {
             if(z.size() != sData.size()){
                 throw std::runtime_error("Input size mismatch");
             }
-            if(this->targetGeometryDOB->size() != config.getActCoords().size()) throw std::runtime_error("Output size mismatch");
-            this->targetGeometryDOB->set(config.getActCoords(), uasisi::interpolate(this->z, this->sData, config.getActCoords(), getInterpType(this->iType)));
+            this->targetGeometryDOB->set(this->actCoords, uasisi::interpolate(this->z, this->sData, this->actCoords, getInterpType(this->iType)));
         } else if(dType == DataType::VEC){
             if(z.size() != vData.size()){
                 throw std::runtime_error("Input size mismatch");
             }
-            if(this->targetGeometryVEC->size() != config.getActCoords().size()) throw std::runtime_error("Output size mismatch");
-            this->targetGeometryVEC->set(config.getActCoords(), uasisi::interpolate(this->z, this->vData, config.getActCoords(), getInterpType(this->iType)));
+            this->targetGeometryVEC->set(this->actCoords, uasisi::interpolate(this->z, this->vData, this->actCoords, getInterpType(this->iType)));
         } else if(dType == DataType::AIR){
             if(z.size() != aData.size()){
                 throw std::runtime_error("Input size mismatch");
             }
-            if(this->targetGeometryAIR->size() != config.getActCoords().size()) throw std::runtime_error("Output size mismatch");
-            this->targetGeometryAIR->set(config.getActCoords(), uasisi::interpolate(this->z, this->aData, config.getActCoords(), getInterpType(this->iType)));
+            this->targetGeometryAIR->set(this->actCoords, uasisi::interpolate(this->z, this->aData, this->actCoords, getInterpType(this->iType)));
         } else {
             throw std::runtime_error("Invalid type");
         }
@@ -136,6 +133,15 @@ void ConstantCtrl::setZ(const std::vector<double>& zNew){
     this->z = zNew;
     this->zIsSet = true;
 }
+
+void ConstantCtrl::setActCoords(const std::vector<double>& zNew){ //Should check for valid coords at some point
+    if(this->isSet || this->isConnected){
+        throw std::runtime_error("Module already connected");
+    }
+    this->actCoords = zNew;
+    this->actCoordsAreSet = true;
+}
+
 
 void ConstantCtrl::setSData(const std::vector<double>& sDataNew){
     if(this->isSet || this->isConnected){

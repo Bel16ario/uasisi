@@ -16,7 +16,7 @@ class PerfectAct : public IActuator{
     PerfectAct();
     ~PerfectAct() override = default;
 
-    void init(const Config& config) override;
+    void init() override;
     std::vector<SignalInfo> declareSignals() override;
     void validateConnections() override; //Is a disconnect method needed? I have made these modules so that once you validate connections and initialize, you can no longer change things so it would make sense to be able to disconnect or change signals before validating. Not sure it would be very useful at this early point of developing but for completeness sake it might be worth it.
 
@@ -59,7 +59,7 @@ class PerfectAct : public IActuator{
     bool dTypeIsSet = false;
     bool iTypeIsSet = false;
 
-    bool addThickness = true;
+    bool addThickness = false;
 
     bool isSet = false;
     bool zIsSet = false;
@@ -70,9 +70,9 @@ class PerfectAct : public IActuator{
     bool rGeometryConnected = false;
     bool isConnected = false;
     
-    SpanwiseVec<double>* targetGeometryDOB = nullptr;
-    SpanwiseVec<std::vector<double>>* targetGeometryVEC = nullptr;
-    SpanwiseVec<airfoil>* targetGeometryAIR = nullptr;
+    const SpanwiseVec<double>* targetGeometryDOB = nullptr;
+    const SpanwiseVec<std::vector<double>>* targetGeometryVEC = nullptr;
+    const SpanwiseVec<airfoil>* targetGeometryAIR = nullptr;
 
     SpanwiseVec<double>* realGeometryDOB = nullptr;
     SpanwiseVec<std::vector<double>>* realGeometryVEC = nullptr;

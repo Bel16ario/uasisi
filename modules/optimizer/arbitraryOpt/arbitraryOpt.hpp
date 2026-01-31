@@ -16,7 +16,7 @@ class ArbitraryOpt : public IOptimizer {
     ArbitraryOpt();
     ~ArbitraryOpt() override = default;
 
-    void init(const Config& config) override;
+    void init() override;
     std::vector<SignalInfo> declareSignals() override;
     void validateConnections() override;
 

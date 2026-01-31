@@ -17,7 +17,7 @@ class ConstantAccelAct : public IActuator{
     ConstantAccelAct();
     ~ConstantAccelAct() override = default;
 
-    void init(const Config& config) override;
+    void init() override;
     std::vector<SignalInfo> declareSignals() override;
     void validateConnections() override;
 
@@ -38,6 +38,7 @@ class ConstantAccelAct : public IActuator{
     void setOmega(const std::vector<double>& omegaNew);
     void setPosTol(const double& tolNew);
     void setThickness(const double& tNew);
+    void setAddThickness(bool cond);
     
     void setIType(const interpType& tNew);
 
@@ -62,7 +63,7 @@ class ConstantAccelAct : public IActuator{
     bool dTypeIsSet = true;
     bool iTypeIsSet = false;
 
-    bool addThickness = true;
+    bool addThickness = false;
 
     bool isSet = false;
     bool zIsSet = false;
@@ -79,7 +80,7 @@ class ConstantAccelAct : public IActuator{
     bool rGeometryConnected = false;
     bool isConnected = false;
 
-    SpanwiseVec<double>* targetGeometryDOB = nullptr;
+    const SpanwiseVec<double>* targetGeometryDOB = nullptr;
     SpanwiseVec<double>* realGeometryDOB = nullptr;
 };
 

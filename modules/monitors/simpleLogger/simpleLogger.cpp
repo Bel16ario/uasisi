@@ -15,7 +15,7 @@ SimpleLogger::SimpleLogger(){
     this->generateFileName();
 }
 
-void SimpleLogger::init(const Config& config){
+void SimpleLogger::init(){
 
     if(!this->isConnected){
         throw std::runtime_error("Module not connected/validated");
@@ -48,7 +48,7 @@ void SimpleLogger::validateConnections(){ //A lot of the validation is actually 
     if(this->isSet || this->isConnected){
         throw std::runtime_error("Module already set or connected");
     }
-    if(this->yellowPagesDOB.empty() && this->yellowPagesVec.empty() && this->yellowPagesSCA.empty()){
+    if(this->yellowPagesDOB.empty() && this->yellowPagesVEC.empty() && this->yellowPagesSCA.empty()){
         std::cout << "WARNING: module unconnected\n";
     }
     this->isConnected = true;
@@ -60,7 +60,7 @@ void SimpleLogger::connectInputDouble(const std::string& name, const SpanwiseVec
     if(this->isConnected || this->isSet){
         throw std::runtime_error("Module already connected or initialized");
     }
-    bool cond = std::any_of(this->inputs.begin(), this->inputs.end(), [](const SignalInfo& s){return s.name() == name && s.dataType() == DataType::DOB;});
+    bool cond = std::any_of(this->inputs.begin(), this->inputs.end(), [&name](const SignalInfo& s){return s.name() == name && s.dataType() == DataType::DOB;});
     if(cond || this->yellowPagesDOB.find(name) != this->yellowPagesDOB.end()){
         throw std::runtime_error("Duplicate signal");
     }
@@ -77,7 +77,7 @@ void SimpleLogger::connectInputVector(const std::string& name, const SpanwiseVec
     if(this->isConnected || this->isSet){
         throw std::runtime_error("Module already connected or initialized");
     }
-    bool cond = std::any_of(inputs.begin(), inputs.end(), [](const SignalInfo& s){return s.name() == name && s.dataType() == DataType::VEC;});
+    bool cond = std::any_of(inputs.begin(), inputs.end(), [&name](const SignalInfo& s){return s.name() == name && s.dataType() == DataType::VEC;});
     if(cond || this->yellowPagesVEC.find(name) != this->yellowPagesVEC.end()){
         throw std::runtime_error("Duplicate signal");
     }
@@ -94,7 +94,7 @@ void SimpleLogger::connectInputScalar(const std::string& name, const double* x){
     if(this->isConnected || this->isSet){
         throw std::runtime_error("Module already connected or initialized");
     }
-    bool cond = std::any_of(inputs.begin(), inputs.end(), [](const SignalInfo& s){return s.name() == name && s.dataType() == DataType::SCA;});
+    bool cond = std::any_of(inputs.begin(), inputs.end(), [&name](const SignalInfo& s){return s.name() == name && s.dataType() == DataType::SCA;});
     if(cond || this->yellowPagesSCA.find(name) != this->yellowPagesSCA.end()){
         throw std::runtime_error("Duplicate signal");
     }
@@ -198,7 +198,7 @@ void SimpleLogger::createDatasets(){
     if(!std::filesystem::exists(this->fileName)){
         throw std::runtime_error("File has not been created");
     }
-    this->file.createGroup("Signals");
+    this->file->createGroup("Signals");
     HighFive::DataSpace timeSpace({0}, {HighFive::DataSpace::UNLIMITED});
     HighFive::DataSetCreateProps timeProps;
     timeProps.add(HighFive::Chunking({this->chunks}));
@@ -269,16 +269,18 @@ void SimpleLogger::writeToDatasets(double t){
     this->timeData.select({this->stepsWritten}, {1}).write(t);
 
     for(auto& [name, signal] : this->yellowPagesDOB){
-        
+      
+        std::vector<std::vector<double>> data2D = {signal.dataPtr->SWData()};
         signal.dataDataset.resize({(this->stepsWritten + 1), signal.size});
-        signal.dataDataset.select({this->stepsWritten, 0}, {1, signal.size}).write(signal.dataPtr->SWData());
+        signal.dataDataset.select({this->stepsWritten, 0}, {1, signal.size}).write(data2D);
 
     }
     
     for(auto& [name, signal] : this->yellowPagesVEC){
         
+        std::vector<std::vector<std::vector<double>>> data3D = {signal.dataPtr->SWData()};
         signal.dataDataset.resize({(this->stepsWritten + 1), signal.size, signal.dims});
-        signal.dataDataset.select({this->stepsWritten, 0, 0}, {1, signal.size, signal.dims}).write(signal.dataPtr->SWData()); //From HighFive documentation I think this works directly and I do not need to flatten it.
+        signal.dataDataset.select({this->stepsWritten, 0, 0}, {1, signal.size, signal.dims}).write(data3D); //From HighFive documentation I think this works directly and I do not need to flatten it.
 
     }
     

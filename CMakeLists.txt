@@ -3,18 +3,102 @@ project(uasisi VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_subdirectory(third_party/yaml-cpp)
+# Find dependencies
+find_package(GSL REQUIRED)
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+find_package(HDF5 REQUIRED COMPONENTS CXX)
+add_subdirectory(third_party/HighFive)
 
-include_directories(${PROJECT_SOURCE_DIR}/include)
+# Include directories
+include_directories(
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/modules  # For module headers
+    ${HDF5_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/third_party/HighFive/include
+)
 
-add_subdirectory(src)
+# ============================================================================
+# CORE LIBRARY (types, orchestrator, config)
+# ============================================================================
 
-# FOR TESTING  
-add_executable(test_types tests/test_types.cpp)
-target_include_directories(test_types PRIVATE include)
-target_link_libraries(test_types gsl gslcblas)
+add_library(uasisi_core
+    src/core/orchestrator.cpp
+    src/io/config.cpp
+)
 
-# Optional: add as a test target
-enable_testing()
-add_test(NAME TypesTest COMMAND test_types)
+target_link_libraries(uasisi_core
+    PUBLIC
+    Eigen3::Eigen
+    GSL::gsl
+    GSL::gslcblas
+)
+
+# ============================================================================
+# MODULES LIBRARY
+# ============================================================================
+
+add_library(uasisi_modules OBJECT
+    # Physics modules
+    modules/physics/phillipsPhy/phillipsPhy.cpp
+    
+    # Control modules
+    modules/control/constantCtrl/constantCtrl.cpp
+    
+    # Actuator modules
+    modules/actuators/perfectAct/perfectAct.cpp
+    modules/actuators/constantAccelAct/constantAccelAct.cpp
+    
+    # Sensor modules
+    modules/sensors/perfectSEN/perfectSen.cpp
+    
+    # Optimizer modules
+    modules/optimizer/arbitraryOpt/arbitraryOpt.cpp
+    
+    # Monitor modules
+    modules/monitors/simpleLogger/simpleLogger.cpp
+)
+
+target_link_libraries(uasisi_modules
+    PUBLIC
+    uasisi_core
+    GSL::gsl
+    GSL::gslcblas
+    Eigen3::Eigen
+    ${HDF5_LIBRARIES}
+)
+
+target_include_directories(uasisi_modules
+    PUBLIC
+    ${HDF5_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/modules
+    HighFive
+)
+
+# ============================================================================
+# TEST EXECUTABLES
+# ============================================================================
+
+add_executable(simpleRun
+    examples/simpleRun/simpleRun.cpp
+    $<TARGET_OBJECTS:uasisi_modules>
+)
+
+target_link_libraries(simpleRun
+    uasisi_core
+    uasisi_modules
+)
+
+# ============================================================================
+# INSTALLATION
+# ============================================================================
+
+install(TARGETS uasisi_core uasisi_modules
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+)
+
+install(DIRECTORY include/uasisi
+    DESTINATION include
+)

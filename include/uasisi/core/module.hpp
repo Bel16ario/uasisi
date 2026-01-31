@@ -1,7 +1,6 @@
 #ifndef MODULE_HPP
 #define MODULE_HPP
 
-#include "uasisi/io/config.hpp"
 #include "uasisi/core/types.hpp"
 #include <functional>
 #include <iostream>
@@ -59,9 +58,9 @@ class SignalInfo{
     SignalInfo(const std::string& name, const DataType& dT, const SignalType&  sT){this->name_ = name; this->dType = dT; this->sType = sT;};
     ~SignalInfo() = default;
 
-    std::string name(){return this->name_;}
-    DataType dataType(){return this->dType;}
-    SignalType signalType(){return this->sType;}
+    std::string name() const {return this->name_;}
+    DataType dataType() const {return this->dType;}
+    SignalType signalType() const {return this->sType;}
 
 
     private:
@@ -76,10 +75,10 @@ class IModule {
 
     public:
 
-    IModule();
+    IModule(){}
     virtual ~IModule() = default;
 
-    virtual void init(const Config& config) = 0; // Do I really need to pass the config here? Is this the best way to do this?
+    virtual void init() = 0;
 
     virtual std::vector<SignalInfo> declareSignals() = 0;
     virtual void validateConnections() = 0;
@@ -96,7 +95,6 @@ class IModule {
     virtual void step(double t, double dt) = 0; //returns when processing is done.
     
     virtual const std::string& getName() const = 0;
-    //virtual const Config& config() const = 0;
 
     protected:
 
@@ -174,7 +172,7 @@ template<typename T>
 std::unique_ptr<T> ModuleFactory<T>::create(const std::string& name) const {
     auto it = this->creators.find(name);
     if(it == this->creators.end()){
-        throw std::runtime_error("Unknown Module for " + typeid(T).name() + ": " + name);
+        throw std::runtime_error(std::string("Unknown Module for ") + typeid(T).name() + ": " + name);
     }
     return it->second();
 }

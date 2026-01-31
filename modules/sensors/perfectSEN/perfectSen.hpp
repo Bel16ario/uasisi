@@ -1,6 +1,9 @@
 #ifndef PERFECTSEN_HPP
 #define PERFECTSEN_HPP
 
+#include "uasisi/core/module.hpp"
+#include "uasisi/core/types.hpp"
+
 namespace uasisi{
 
 class PerfectSen : public ISensor{
@@ -10,7 +13,7 @@ class PerfectSen : public ISensor{
     PerfectSen();
     ~PerfectSen() override = default;
 
-    void init(const Config& config) override;
+    void init() override;
     std::vector<SignalInfo> declareSignals() override;
     void validateConnections() override;
 
@@ -27,7 +30,7 @@ class PerfectSen : public ISensor{
     void setZOut(const std::vector<double>& zNew);
     
     void setDType(const DataType& t);
-    void setIType(const DataType& t);
+    void setIType(const interpType& t);
 
     private:
 
@@ -49,8 +52,8 @@ class PerfectSen : public ISensor{
     bool sLiftConnected = false;
     bool isConnected = false;
     
-    SpanwiseVec<double>* realLiftDOB = nullptr;
-    SpanwiseVec<std::vector<double>>* realLiftVEC = nullptr;
+    const SpanwiseVec<double>* realLiftDOB = nullptr;
+    const SpanwiseVec<std::vector<double>>* realLiftVEC = nullptr;
 
     SpanwiseVec<double>* sensedLiftDOB = nullptr;
     SpanwiseVec<std::vector<double>>* sensedLiftVEC = nullptr;

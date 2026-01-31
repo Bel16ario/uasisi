@@ -8,7 +8,7 @@ PerfectSen::PerfectSen(){
  std::cout << "Perfect Sensor created\n";
 }
 
-void PerfectSen::init(const Config& config){
+void PerfectSen::init(){
     if(this->isSet){
         throw std::runtime_error("Module already initialized");
     }
@@ -203,7 +203,7 @@ void PerfectSen::step(double t, double dt){
             throw std::runtime_error("Module not properly connected");
         }
     } else {
-        throw std::runtime_error("Module is not yet connected. Please validate before initalizing")
+        throw std::runtime_error("Module is not yet connected. Please validate before initalizing");
     }
 
 }
