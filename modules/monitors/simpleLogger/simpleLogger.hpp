@@ -65,6 +65,8 @@ class SimpleLogger : public IMonitor{ //Does not support airfoil input right now
     void setWriteInterval(size_t intervalNew);
     void setChunks(size_t chunksNew);
 
+    std::string getFileName();
+
     private:
 
     std::string name = "simpleLogger";

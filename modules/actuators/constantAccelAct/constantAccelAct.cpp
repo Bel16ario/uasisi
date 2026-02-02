@@ -72,7 +72,6 @@ void ConstantAccelAct::init(){
     } else {
         throw std::runtime_error("Module unconnected");
     }
-
     this->isSet = true;
 
 }
@@ -167,19 +166,19 @@ void ConstantAccelAct::step(double t, double dt){ // I honestly think like these
             double deltaTheta;
             double stopDistance;
             for(size_t i = 0; i < this->z.size(); i++){
-                if(!((*this->targetGeometryDOB)[i] >= this->centerPos[i] + this->maxPos[i] || (*this->targetGeometryDOB)[i] <= this->centerPos[i] - this->maxPos[i])){
+                if(!(this->theta[i] >= this->centerPos[i] + this->maxPos[i] || this->theta[i] <= this->centerPos[i] - this->maxPos[i])){
                     posError = (*this->targetGeometryDOB)[i] - this->theta[i];
                     if(std::abs(posError) < this->posTol){
                         this->omega[i] = 0.0;
                         continue;
                     }
-                    maxDeltaTheta = dt*this->omega[i] + 0.5*this->maxAccel[i];
-                    minDeltaTheta = dt*this->omega[i] - 0.5*this->maxAccel[i];
+                    maxDeltaTheta = dt*this->omega[i] + 0.5*this->maxAccel[i]*dt*dt;
+                    minDeltaTheta = dt*this->omega[i] - 0.5*this->maxAccel[i]*dt*dt;
                     stopDistance = std::abs((this->omega[i]*this->omega[i]*0.5)/this->maxAccel[i]);
                     if(stopDistance >= std::abs(posError)){
                         deltaOmega = -std::copysign(std::min(this->maxAccel[i]*dt, std::abs(this->omega[i])), this->omega[i]);
                     } else {
-                        deltaOmega = std::copysign(std::min(this->maxAccel[i]*dt, this->maxVel[i] - std::abs(this->omega[i])), std::abs(posError));
+                        deltaOmega = std::copysign(std::min(this->maxAccel[i]*dt, this->maxVel[i] - std::abs(this->omega[i])), posError);
                     }
                     this->omega[i] += deltaOmega;
                     deltaTheta = this->omega[i]*dt;
@@ -189,9 +188,9 @@ void ConstantAccelAct::step(double t, double dt){ // I honestly think like these
                         this->omega[i] = 0.0;
                     }
                     this->theta[i] += deltaTheta;
-                } else if((*this->targetGeometryDOB)[i] > this->centerPos[i] + this->maxPos[i]){
+                } else if(this->theta[i] >= this->centerPos[i] + this->maxPos[i]){
                     this->theta[i] = this->centerPos[i] + this->maxPos[i];
-                } else if((*this->targetGeometryDOB)[i] < this->centerPos[i] - this->maxPos[i]){
+                } else if(this->theta[i] <= this->centerPos[i] - this->maxPos[i]){
                     this->theta[i] = this->centerPos[i] - this->maxPos[i];
                 }
             }

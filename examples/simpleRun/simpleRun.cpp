@@ -1,16 +1,20 @@
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <vector>
 #include "uasisi/core/module.hpp"
 #include "uasisi/core/orchestrator.hpp"
 #include "uasisi/core/types.hpp"
 
 #include "monitors/simpleLogger/simpleLogger.hpp"
-#include "physics/phillipsPhy/phillipsPhy.hpp"
 #include "actuators/constantAccelAct/constantAccelAct.hpp"
 #include "control/constantCtrl/constantCtrl.hpp"
+#include "physics/phillipsPhy/phillipsPhy.hpp"
 
 using namespace uasisi;
+
+double toRad(double theta){return (theta*M_PI)/180.0;}
 
 void constantCtrlConfig(IModule* mod){
     ConstantCtrl* ctrlPtr = dynamic_cast<ConstantCtrl*>(mod);
@@ -18,9 +22,9 @@ void constantCtrlConfig(IModule* mod){
         throw std::runtime_error("Problem casting from IModule class");
     }
 
-    std::vector<double> ctrlCoords = {-5.0, 5.0};
-    std::vector<double> ctrlData = {-5.0, 5.0};
-    std::vector<double> actCoords = {-5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
+    std::vector<double> ctrlCoords = {-3.0, 0.0, 3.0};
+    std::vector<double> ctrlData = {toRad(5.0), toRad(0.0), toRad(5.0)};
+    std::vector<double> actCoords = {-3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0};
 
     ctrlPtr->setIType(interpType::LIN);
     ctrlPtr->setDType(DataType::DOB);
@@ -36,20 +40,19 @@ void constantAccelActConfig(IModule* mod){
         throw std::runtime_error("Problem casting from IModule class");
     }
 
-    std::vector<double> actCoords = {-5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
-    std::vector<double> maxPos = {5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0};
-    std::vector<double> maxVel = {0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
-    std::vector<double> maxAccel = {0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2};
-    std::vector<double> centerPos = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    std::vector<double> theta = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    std::vector<double> omega = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    std::vector<double> actCoords = {-3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0};
+    std::vector<double> maxPos = {toRad(5.0), toRad(5.0), toRad(5.0), toRad(5.0), toRad(5.0), toRad(5.0), toRad(5.0)};
+    std::vector<double> maxVel = {0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
+    std::vector<double> maxAccel = {0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2};
+    std::vector<double> centerPos = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    std::vector<double> theta = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    std::vector<double> omega = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     std::vector<double> zOut(200);
-    double dz = 10.0/199.0;
+    double dz = 6.0 / 199.0;
     for(size_t i = 0; i < zOut.size(); i++){
-        zOut[i] = -5 + dz*i;
+        zOut[i] = -3 + i*dz;
     }
-
-    actPtr->setIType(interpType::CSP);
+    actPtr->setIType(interpType::LIN);
     
     actPtr->setZ(actCoords);
     actPtr->setZOut(zOut);
@@ -70,16 +73,16 @@ void phillipsPhyConfig(IModule* mod){
         throw std::runtime_error("Problem casting from IModule class");
     }
 
-    std::vector<double> zOut(200);
-    double dz = 10.0/199.0;
+    std::vector<double> zOut(152);
+    double dPhi = M_PI / 151;
     for(size_t i = 0; i < zOut.size(); i++){
-        zOut[i] = -5 + dz*i;
+        zOut[zOut.size() - 1 - i] = 3*std::cos(i*dPhi);
     }
     FlightConditions fConds;
-    fConds.setVInf(point{100.0, 0.0, 0.0, 0});
+    fConds.setVInf(point{166.0, 0.0, 0.0, 0});
     fConds.setAltitude(1000.0);
     
-    phyPtr->setIType(interpType::CSP);
+    phyPtr->setIType(interpType::LIN);
 
     phyPtr->setZOut(zOut);
     phyPtr->updateFConds(fConds);
@@ -117,7 +120,7 @@ int main(int argc, char* argv[]){
     orch.init();
 
     double dt = 0.01;
-    double tMax = 1.0;
+    double tMax = 10.0;
     double t = 0;
 
     for(size_t i = 0; t < tMax; i++){

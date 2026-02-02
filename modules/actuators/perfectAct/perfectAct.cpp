@@ -21,7 +21,7 @@ void PerfectAct::init(){
             if(this->initialStateIsSet){
                 if(this->dType == DataType::DOB && this->z.size() == this->targetGeometryDOB->size()){
                     if(this->addThickness){
-                        if(!this->thicknessIsSet || this->thickness > 0 || this->z.size() < 3){
+                        if(!this->thicknessIsSet || !(this->thickness > 0) || this->z.size() < 3){
                             throw std::runtime_error("Module not configured for thickness");
                         }
                         std::vector<double> zThick;
@@ -56,7 +56,7 @@ void PerfectAct::init(){
                     }
                 } else if(this->dType == DataType::VEC || this->z.size() == this->targetGeometryVEC->size()){
                     if(this->addThickness){
-                        if(!this->thicknessIsSet || this->thickness > 0 || this->z.size() < 3){
+                        if(!this->thicknessIsSet || !(this->thickness > 0) || this->z.size() < 3){
                             throw std::runtime_error("Module not configured for thickness");
                         }
                         std::vector<double> zThick;
@@ -91,7 +91,7 @@ void PerfectAct::init(){
                     }
                 } else if (this->dType == DataType::AIR || this->z.size() == this->targetGeometryAIR->size()){
                     if(this->addThickness){
-                        if(!this->thicknessIsSet || this->thickness > 0 || this->z.size() < 3){
+                        if(!this->thicknessIsSet || !(this->thickness > 0) || this->z.size() < 3){
                             throw std::runtime_error("Module not configured for thickness");
                         }
                         std::vector<double> zThick;
@@ -318,7 +318,7 @@ void PerfectAct::step(double t, double dt){
     if(this->tGeometryConnected && this->rGeometryConnected){
         if(this->dType == DataType::DOB){
             if(this->addThickness){
-                if(!this->thicknessIsSet || this->thickness > 0 || this->z.size() < 3){
+                if(!this->thicknessIsSet || !(this->thickness > 0) || this->z.size() < 3){
                     throw std::runtime_error("Module not configured for thickness");
                 }
                 std::vector<double> zThick;
@@ -356,7 +356,7 @@ void PerfectAct::step(double t, double dt){
             }
         } else if(this->dType == DataType::VEC){
             if(this->addThickness){
-                if(!this->thicknessIsSet || this->thickness > 0 || this->z.size() < 3){
+                if(!this->thicknessIsSet || !(this->thickness > 0) || this->z.size() < 3){
                     throw std::runtime_error("Module not configured for thickness");
                 }
                 std::vector<double> zThick;
@@ -394,7 +394,7 @@ void PerfectAct::step(double t, double dt){
             }
         } else if(this->dType == DataType::AIR){
             if(this->addThickness){
-                if(!this->thicknessIsSet || this->thickness > 0 || this->z.size() < 3){
+                if(!this->thicknessIsSet || !(this->thickness > 0) || this->z.size() < 3){
                     throw std::runtime_error("Module not configured for thickness");
                 }
                 std::vector<double> zThick;
@@ -458,7 +458,7 @@ void PerfectAct::setThickness(const double& tNew){
         throw std::runtime_error("Module already connected");
     }
     this->thickness = tNew;
-    this->zIsSet = true;
+    this->thicknessIsSet = true;
 }
 
 void PerfectAct::setInitialStateDOB(const std::vector<double>& x0New){
@@ -511,6 +511,13 @@ void PerfectAct::setIType(const interpType& tNew){
     }
     this->iType = tNew;
     this->iTypeIsSet = true;
+}
+
+void PerfectAct::setAddThickness(bool cond){
+    if(this->isSet || this->isConnected){
+        throw std::runtime_error("Module already connected");
+    }
+    this->addThickness = cond;
 }
 
 }

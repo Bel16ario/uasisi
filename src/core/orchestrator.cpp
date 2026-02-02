@@ -184,8 +184,9 @@ void Orchestrator::configureModules(){
         throw std::runtime_error("Modules already configured");
     }
     for(const auto& [instanceName, configurator] : this->configurators){
+        std::cout << "Configuring " << instanceName << " ...";
         configurator(this->modules[instanceName].get());
-        std::cout << "Module " << instanceName << " configured\n";
+        std::cout << "Done\n";
     }
     this->isConfigured = true;
 }

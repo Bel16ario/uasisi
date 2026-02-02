@@ -29,6 +29,7 @@ void SimpleLogger::init(){
     }
     this->createDatasets();
     this->isSet = true;
+    this->writeToDatasets(0.0);
 
 }
 
@@ -114,7 +115,7 @@ void SimpleLogger::step(double t, double dt){
     
     if(this->stepsSinceWrite >= this->writeInterval){
         this->writeToDatasets(t);
-        this->stepsSinceWrite = 0;
+        this->stepsSinceWrite = 1;
     } else {
         this->stepsSinceWrite++;
     }
@@ -191,6 +192,10 @@ void SimpleLogger::createFile(){
 
 }
 
+std::string SimpleLogger::getFileName(){ //I should add another common Module method run at the end of simulation. In the case of this module for example, it could print the fileName
+    return this->getFileName();
+}
+
 void SimpleLogger::createDatasets(){
     if(this->isSet){
         throw std::runtime_error("Module already initialized");
@@ -198,7 +203,6 @@ void SimpleLogger::createDatasets(){
     if(!std::filesystem::exists(this->fileName)){
         throw std::runtime_error("File has not been created");
     }
-    this->file->createGroup("Signals");
     HighFive::DataSpace timeSpace({0}, {HighFive::DataSpace::UNLIMITED});
     HighFive::DataSetCreateProps timeProps;
     timeProps.add(HighFive::Chunking({this->chunks}));

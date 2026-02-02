@@ -1,3 +1,5 @@
+//TODO: Implement obtainPolars() with xfoil and also add number of points and force angular distribution.
+
 #include "phillipsPhy.hpp"
 #include <cmath>
 #include <iostream>
@@ -282,8 +284,8 @@ void PhillipsPhy::generateFij(){//
         throw std::runtime_error("Module not fully setup yet");
     }
     this->Fij.resize(this->phi.size(), this->phi.size());
-    for(size_t i = 0; i < this->phi.size(); i++){
-        for(size_t j = 0; j < this->phi.size(); j++){
+    for(size_t j = 0; j < this->phi.size(); j++){
+        for(size_t i = 0; i < this->phi.size(); i++){
             double mode = static_cast<double>(j + 1);
             this->Fij(i, j) = ((4.0*this->span)/(this->lSlope[i]*this->chord[i]) + mode/(std::sin(this->phi[i])))*std::sin(mode*this->phi[i]);
         }

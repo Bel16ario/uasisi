@@ -41,6 +41,7 @@ class PerfectAct : public IActuator{
 
     void setDType(const DataType& tNew);
     void setIType(const interpType& tNew);
+    void setAddThickness(bool cond);
 
     private:
     
