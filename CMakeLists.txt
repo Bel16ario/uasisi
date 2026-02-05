@@ -1,10 +1,25 @@
 cmake_minimum_required(VERSION 3.15)
 project(uasisi VERSION 1.0.0 LANGUAGES CXX)
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+add_compile_options(-Wno-attributes)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+set(UASISI_PYTHON_ENABLED FALSE)
+set(UASISI_HAS_PYTORCH FALSE)
+
+if(DEFINED ENV{VIRTUAL_ENV})
+    message(STATUS "Detected Python venv: $ENV{VIRTUAL_ENV}")
+    set(Python_ROOT_DIR "$ENV{VIRTUAL_ENV}")
+    set(Python_FIND_VIRTUALENV FIRST)
+    set(Python_FIND_STRATEGY LOCATION)
+endif()
 # ============================================================================
 # GENERIC OPTIONS (No module-specific knowledge)
 # ============================================================================
@@ -80,6 +95,19 @@ function(register_module MODULE_NAME MODULE_PATH)
     if(EXISTS ${MODULE_PATH}/CMakeLists.txt)
         message(STATUS "Loading module: ${MODULE_NAME}")
         add_subdirectory(${MODULE_PATH} ${CMAKE_BINARY_DIR}/modules/${MODULE_NAME})
+        
+        # Propagate Python flags from subdirectory to parent scope
+        if(UASISI_PYTHON_ENABLED)
+            set(UASISI_PYTHON_ENABLED TRUE PARENT_SCOPE)
+        endif()
+        if(UASISI_HAS_PYTORCH)
+            set(UASISI_HAS_PYTORCH TRUE PARENT_SCOPE)
+        endif()
+        
+        # Propagate module tracking variables
+        set(UASISI_MODULE_SOURCES ${UASISI_MODULE_SOURCES} PARENT_SCOPE)
+        set(UASISI_MODULE_LIBRARIES ${UASISI_MODULE_LIBRARIES} PARENT_SCOPE)
+        set(UASISI_MODULE_INCLUDE_DIRS ${UASISI_MODULE_INCLUDE_DIRS} PARENT_SCOPE)
     else()
         # No CMakeLists.txt - use default behavior (just compile .cpp files)
         file(GLOB_RECURSE MODULE_SRC "${MODULE_PATH}/*.cpp")
@@ -100,7 +128,7 @@ if(UASISI_AUTO_DISCOVER_MODULES)
     message(STATUS "=== Auto-discovering modules ===")
     
     # List of module categories to scan
-    set(MODULE_CATEGORIES physics control actuators sensors optimizer monitors)
+    set(MODULE_CATEGORIES physics control actuators sensors optimizer monitors modules)
     
     foreach(CATEGORY ${MODULE_CATEGORIES})
         set(CATEGORY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/modules/${CATEGORY})
@@ -121,13 +149,25 @@ if(UASISI_AUTO_DISCOVER_MODULES)
     message(STATUS "")
 endif()
 
+if(UASISI_PYTHON_ENABLED)
+    find_package(Python 3.8 COMPONENTS Interpreter Development REQUIRED)
+    find_package(pybind11 CONFIG REQUIRED)
+    message(STATUS "Python dependencies loaded in root scope for module linking")
+endif()
+
 # ============================================================================
 # MODULES LIBRARY (Built from whatever modules registered)
 # ============================================================================
 
 # Only create library if we have sources
 if(UASISI_MODULE_SOURCES)
-    add_library(uasisi_modules OBJECT ${UASISI_MODULE_SOURCES})
+
+    set(ALL_MODULE_SOURCES ${UASISI_MODULE_SOURCES})
+    if(UASISI_PYTHON_ENABLED)
+        list(APPEND ALL_MODULE_SOURCES ${PROJECT_SOURCE_DIR}/src/utils/pybindhelper.cpp)
+    endif()
+
+    add_library(uasisi_modules OBJECT ${ALL_MODULE_SOURCES})
     
     target_link_libraries(uasisi_modules
         PUBLIC
@@ -143,6 +183,15 @@ if(UASISI_MODULE_SOURCES)
         ${PROJECT_SOURCE_DIR}/modules
         ${UASISI_MODULE_INCLUDE_DIRS}
     )
+    if(UASISI_PYTHON_ENABLED)
+        target_compile_definitions(uasisi_modules PUBLIC UASISI_HAS_PYTHON_MODULE)
+        message(STATUS "Python module enabled - adding UASISI_HAS_PYTHON_MODULE definition")
+        
+        if(UASISI_HAS_PYTORCH)
+            target_compile_definitions(uasisi_modules PUBLIC UASISI_HAS_PYTORCH)
+            message(STATUS "PyTorch enabled - adding UASISI_HAS_PYTORCH definition")
+        endif()
+    endif()
 else()
     message(WARNING "No module sources found!")
 endif()
@@ -150,20 +199,42 @@ endif()
 # ============================================================================
 # EXECUTABLES
 # ============================================================================
+message(STATUS "DEBUG: UASISI_PYTHON_ENABLED = ${UASISI_PYTHON_ENABLED}")
+message(STATUS "DEBUG: UASISI_HAS_PYTORCH = ${UASISI_HAS_PYTORCH}")
+message(STATUS "DEBUG: TARGET uasisi_modules exists = $<TARGET_EXISTS:uasisi_modules>")
+#add_executable(simpleRun
+#    examples/simpleRun/simpleRun.cpp
+#)
 
-add_executable(simpleRun
-    examples/simpleRun/simpleRun.cpp
-)
+#if(TARGET uasisi_modules)
+#    target_link_libraries(simpleRun
+#        uasisi_core
+#        uasisi_modules
+#    )
+#else()
+#    target_link_libraries(simpleRun
+#        uasisi_core
+#    )
+#endif()
 
-if(TARGET uasisi_modules)
-    target_link_libraries(simpleRun
+if(TARGET uasisi_modules AND UASISI_PYTHON_ENABLED)
+    add_executable(test_python_wrapper
+        tests/test_python_wrapper.cpp
+    )
+    
+    target_link_libraries(test_python_wrapper
         uasisi_core
         uasisi_modules
     )
-else()
-    target_link_libraries(simpleRun
-        uasisi_core
-    )
+    
+    # Also apply the Python definitions to test executable
+    target_compile_definitions(test_python_wrapper PRIVATE UASISI_HAS_PYTHON_MODULE)
+    
+    if(UASISI_HAS_PYTORCH)
+        target_compile_definitions(test_python_wrapper PRIVATE UASISI_HAS_PYTORCH)
+    endif()
+    
+    message(STATUS "Python wrapper test executable will be built")
 endif()
 
 # ============================================================================

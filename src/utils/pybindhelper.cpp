@@ -41,33 +41,33 @@ void PythonConfigDict::setConfigInt(const std::string& key, const int value){
     if(this->configDict.contains(key)){
         std::cout << "WARNING: Overwriting key " << key << " with value " << std::to_string(value) << "\n";
     }
-    this->configDict[key] = value;
+    this->configDict[key.c_str()] = value;
 }
 
 void PythonConfigDict::setConfigBool(const std::string& key, const bool value){
     if(this->configDict.contains(key)){
         std::cout << "WARNING: Overwriting key " << std::boolalpha << key << " with value " << std::to_string(value) << "\n";
     }
-    this->configDict[key] = value;
+    this->configDict[key.c_str()] = value;
 }
 
 void PythonConfigDict::setConfigDouble(const std::string& key, const double value){
     if(this->configDict.contains(key)){
         std::cout << "WARNING: Overwriting key " << key << " with value " << std::to_string(value) << "\n";
     }
-    this->configDict[key] = value;
+    this->configDict[key.c_str()] = value;
 }
 
 void PythonConfigDict::setConfigString(const std::string& key, const std::string& value){
     if(this->configDict.contains(key)){
         std::cout << "WARNING: Overwriting key " << key << " with value \"" << value << "\"\n";
     }
-    this->configDict[key] = value;
+    this->configDict[key.c_str()] = value;
 }
 
 void PythonConfigDict::setConfigObject(const std::string& key, const py::object& value){
     if(this->configDict.contains(key)){
-        std::string typeName = py::str(value.get_type().attr("__name__"));
+        std::string typeName = py::str(py::type::of(value).attr("__name__"));
         std::string info;
         if (typeName == "function") {
             std::string funcName = py::str(value.attr("__name__"));
@@ -77,10 +77,10 @@ void PythonConfigDict::setConfigObject(const std::string& key, const py::object&
         }
         std::cout << "WARNING: Overwriting key " << key << " with value " << info << "\n";
     }
-    this->configDict[key] = value;
+    this->configDict[key.c_str()] = value;
 }
 
-const py::dict& PythonConfigDict::getDict(){//Need to check if anything bad happens if dict is empty
+const py::dict& PythonConfigDict::getDict() const{//Need to check if anything bad happens if dict is empty
     return this->configDict;
 }
 
@@ -88,9 +88,9 @@ void PythonConfigDict::clearConfig(){
     this->configDict.attr("clear")();
 }
 
-std::any PythonConfigDict::getConfig(const std::string& key){
+std::any PythonConfigDict::getConfig(const std::string& key) const{
     if(this->configDict.contains(key)){
-        return this->configDict[key];
+        return this->configDict[key.c_str()];
     } else {
         throw std::runtime_error("No matching configuration found");
     }

@@ -1,12 +1,15 @@
 #include "simpleLogger.hpp"
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
+#include <iostream>
 #include <sstream>
 #include <iomanip>
 #include <stdexcept>
 #include <highfive/H5File.hpp>
 #include <highfive/H5DataSet.hpp>
 #include <highfive/H5DataSpace.hpp>
+#include <string>
 
 namespace uasisi{
 
@@ -218,7 +221,7 @@ void SimpleLogger::createDatasets(){
 
         HighFive::DataSpace dataSpace({0, signal.size}, {HighFive::DataSpace::UNLIMITED, signal.size});
         HighFive::DataSetCreateProps dataProps;
-        dataProps.add(HighFive::Chunking({this->chunks, signal.size}));
+        dataProps.add(HighFive::Chunking({this->chunks, std::max(size_t(1), signal.size)}));
         signal.dataDataset = this->file->createDataSet<double>("/signals/" + name + "/data", dataSpace, dataProps);
 
     }
@@ -246,7 +249,7 @@ void SimpleLogger::createDatasets(){
 
         HighFive::DataSpace dataSpace({0, signal.size, signal.dims}, {HighFive::DataSpace::UNLIMITED, signal.size, signal.dims});
         HighFive::DataSetCreateProps dataProps;
-        dataProps.add(HighFive::Chunking({this->chunks, signal.size, signal.dims}));
+        dataProps.add(HighFive::Chunking({this->chunks, std::max(size_t(1), signal.size), std::max(size_t(1), signal.dims)}));
         signal.dataDataset = this->file->createDataSet<double>("/signals/" + name + "/data", dataSpace, dataProps);
 
     }

@@ -7,6 +7,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <filesystem>
 
 namespace py = pybind11;
 

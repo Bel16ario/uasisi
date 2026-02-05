@@ -4,7 +4,7 @@
 #include <any>
 #include <pybind11/embed.h>
 namespace py = pybind11;
-
+//Apparently there are some problems with visibility mismatches that go way above my head so I will just tell the compiler to ignore them. Maybe later it will be worth it to fix.
 namespace uasisi{
 
 class PythonInterpreter{ //Singleton
@@ -13,8 +13,8 @@ class PythonInterpreter{ //Singleton
 
     static PythonInterpreter& getInstance();
     static void destroyInstance();
-    PythonInterpreter(const PythonInterpreter&) = delete("Copy construction disabled");
-    PythonInterpreter& operator=(const PythonInterpreter&) = delete("Copy assignment disabled");
+    PythonInterpreter(const PythonInterpreter&) = delete;
+    PythonInterpreter& operator=(const PythonInterpreter&) = delete;
 
 
     private:
@@ -37,9 +37,9 @@ class PythonConfigDict{
     void setConfigString(const std::string& key, const std::string& value);
     void setConfigObject(const std::string& key, const py::object& value);
 
-    const py::dict& getDict();
+    const py::dict& getDict() const;
     void clearConfig();
-    std::any getConfig(const std::string& key);
+    std::any getConfig(const std::string& key) const;
 
     private:
 

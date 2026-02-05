@@ -5,8 +5,10 @@
 #include "pybind11/embed.h"
 #include "pybind11/eval.h"
 #include "pybind11/stl.h"
+#include <ios>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <vector>
 #include <filesystem>
 
@@ -15,6 +17,7 @@ using namespace py::literals;
 namespace uasisi{
 
 PythonWrapper::PythonWrapper(){
+    std::cout << "Python Wrapper created\n";
     PythonInterpreter::getInstance();
 }
 
@@ -67,6 +70,9 @@ std::vector<SignalInfo> PythonWrapper::declareSignals(){
 
     for(auto item : signalList){
         signalDict = item.cast<py::dict>();
+        if(!signalDict.contains("name") || !signalDict.contains("dType") || !signalDict.contains("sType")){
+            throw std::runtime_error("Invalid dict structure");
+        }
         name = signalDict["name"].cast<std::string>();
         dataTypeString = signalDict["dType"].cast<std::string>();
         signalTypeString = signalDict["sType"].cast<std::string>();
@@ -95,16 +101,6 @@ std::vector<SignalInfo> PythonWrapper::declareSignals(){
         }
        
         requestedSignals.push_back(SignalInfo(name, dataType, signalType));
-        switch(signalType){
-            case SignalType::IN:
-                inputs.push_back(SignalInfo(name, dataType, signalType));
-                break;
-            case SignalType::OUT:
-                outputs.push_back(SignalInfo(name, dataType, signalType));
-                break;
-            default: //No buffer support for now
-                throw std::runtime_error("Invalid signal type");
-        }
     }
     return requestedSignals;
 }
@@ -397,14 +393,14 @@ void PythonWrapper::readOutputDict(){
     py::dict signalDict;
     std::string signalName;
     for(const auto& signalGroups : this->outputDict){
-        groupDict = signalGroups.cast<py::dict>();
+        groupDict = signalGroups.second.cast<py::dict>();
         if(groupDict.contains("DOB")){
             for(const auto& signal : groupDict){
                 signalName = py::str(signal.first);
                 if(this->dataDirOutDOB.find(signalName) == this->dataDirOutDOB.end()){
                     continue;
                 }
-                signalDict = signal.cast<py::dict>();
+                signalDict = signal.second.cast<py::dict>();
                 updateDOBWithDic(signalDict, this->dataDirOutDOB[signalName]);
             }
         }
@@ -414,7 +410,7 @@ void PythonWrapper::readOutputDict(){
                 if(this->dataDirOutVEC.find(signalName) == this->dataDirOutVEC.end()){
                     continue;
                 }
-                signalDict = signal.cast<py::dict>();
+                signalDict = signal.second.cast<py::dict>();
                 updateVECWithDic(signalDict, this->dataDirOutVEC[signalName]);
             }
         }
@@ -424,7 +420,7 @@ void PythonWrapper::readOutputDict(){
                 if(this->dataDirOutAIR.find(signalName) == this->dataDirOutAIR.end()){
                     continue;
                 }
-                signalDict = signal.cast<py::dict>();
+                signalDict = signal.second.cast<py::dict>();
                 updateAIRWithDic(signalDict, this->dataDirOutAIR[signalName]);
             }
         }
@@ -434,7 +430,7 @@ void PythonWrapper::readOutputDict(){
                 if(this->dataDirOutSCA.find(signalName) == this->dataDirOutSCA.end()){
                     continue;
                 }
-                signalDict = signal.cast<py::dict>();
+                signalDict = signal.second.cast<py::dict>();
                 updateSCAWithDic(signalDict, this->dataDirOutSCA[signalName]);
             }
         }
@@ -503,37 +499,37 @@ void PythonWrapper::setDeclareSignalsKwargs(const PythonConfigDict& kwargsNew){
     if(this->isSet || this->isConnected){
         throw std::runtime_error("Module already running/connected");
     }
-    this->declareSignalsKwargs = kwargsNew;
+    this->declareSignalsKwargs = kwargsNew.getDict();
 }
 
 void PythonWrapper::setInitKwargs(const PythonConfigDict& kwargsNew){
     if(this->isSet || this->isConnected){
         throw std::runtime_error("Module already running/connected");
     }
-    this->initKwargs = kwargsNew;
+    this->initKwargs = kwargsNew.getDict();
 }
 
 void PythonWrapper::setStepKwargs(const PythonConfigDict& kwargsNew){
-    this->stepKwargs = kwargsNew;
+    this->stepKwargs = kwargsNew.getDict();
 }
 
 
-void execCommand(const std::string& command, const PythonConfigDict& kwargs){
+void PythonWrapper::execCommand(const std::string& command, const PythonConfigDict& kwargs){
     py::object scope = py::module_::import("__main__").attr("__dict__");
     py::exec(command, scope, kwargs.getDict());
 }
 
-void execSnippet(const std::string& snippet){
+void PythonWrapper::execSnippet(const std::string& snippet){
     py::object scope = py::module_::import("__main__").attr("__dict__");
     py::exec(snippet, scope);
 }
 
-void execScript(const std::string& scriptPath){
+void PythonWrapper::execScript(const std::string& scriptPath){
     py::object scope = py::module_::import("__main__").attr("__dict__");
     py::eval_file(scriptPath, scope);
 }
 
-py::object execCommandWithReturn(const std::string& command, const PythonConfigDict& kwargs){
+py::object PythonWrapper::execCommandWithReturn(const std::string& command, const PythonConfigDict& kwargs){
     py::object scope = py::module_::import("__main__").attr("__dict__");
     return py::eval(command, scope, kwargs.getDict());
 }
@@ -549,7 +545,7 @@ py::dict dobToDic(const SpanwiseVec<double>& data){
     return dic;
 }
 
-py::dict vecToDic(const SpanwiseVec<airfoil>& data){
+py::dict vecToDic(const SpanwiseVec<std::vector<double>>& data){
     py::dict dic;
     if(data.size() == 0){
        return dic;
@@ -618,48 +614,48 @@ SpanwiseVec<double> dicToDOB(const py::dict& data){
     if(!data.contains("data") || !data.contains("coords") || !data.contains("type")){
         throw std::runtime_error("Invalid dictionary structure");
     }
-    if(data["type"] != "DOB"){
+    if(data["type"].cast<std::string>() != "DOB"){
         throw std::runtime_error("Invalid data type for DOB converter");
     }
     return SpanwiseVec<double>(data["coords"].cast<std::vector<double>>(), data["data"].cast<std::vector<double>>());
 }
 
-SpanwiseVec<double> dicToVEC(const py::dict& data){
+SpanwiseVec<std::vector<double>> dicToVEC(const py::dict& data){
     if(!data.contains("data") || !data.contains("coords") || !data.contains("type")){
         throw std::runtime_error("Invalid dictionary structure");
     }
-    if(data["type"] != "VEC"){
+    if(data["type"].cast<std::string>() != "VEC"){
         throw std::runtime_error("Invalid data type for VEC converter");
     }
-    return SpanwiseVec<double>(data["coords"].cast<std::vector<double>>(), data["data"].cast<std::vector<std::vector<double>>>());
+    return SpanwiseVec<std::vector<double>>(data["coords"].cast<std::vector<double>>(), data["data"].cast<std::vector<std::vector<double>>>());
 }
 
-SpanwiseVec<double> dicToAIR(const py::dict& data){
+SpanwiseVec<airfoil> dicToAIR(const py::dict& data){
     if(!data.contains("data") || !data.contains("coords") || !data.contains("type")){
         throw std::runtime_error("Invalid dictionary structure");
     }
-    if(data["type"] != "AIR"){
+    if(data["type"].cast<std::string>() != "AIR"){
         throw std::runtime_error("Invalid data type for AIR converter");
     }
     
     std::vector<airfoil> foilVec;
     py::list foils = data["data"];
     if(foils.empty()){ // I want to check if the data and coords dicts match in size but that will be handled at instantiating the return object.
-        return SpanwiseVec<double>(data["coords"].cast<std::vector<double>>(), foilVec);
+        return SpanwiseVec<airfoil>(data["coords"].cast<std::vector<double>>(), foilVec);
     }
     py::dict foilDict;
     for(const auto& foil : foils){
         foilDict = foil.cast<py::dict>();
         foilVec.push_back(dicToAirfoil(foilDict));
     }
-    return SpanwiseVec<double>(data["coords"].cast<std::vector<double>>(), foilVec);
+    return SpanwiseVec<airfoil>(data["coords"].cast<std::vector<double>>(), foilVec);
 }
 
 double dicToSCA(const py::dict& data){
     if(!data.contains("data") || !data.contains("type")){
         throw std::runtime_error("Invalid dictionary structure");
     }
-    if(data["type"] != "SCA"){
+    if(data["type"].cast<std::string>() != "SCA"){
         throw std::runtime_error("Invalid data type for SCA converter");
     }
     return data["data"].cast<double>(); //Do I need to cast to double here?
@@ -669,7 +665,7 @@ airfoil dicToAirfoil(const py::dict& data){
     if(!data.contains("name") || !data.contains("chord") || !data.contains("attachmentPoint") || !data.contains("points") || !data.contains("type")){
         throw std::runtime_error("Invalid dictionary structure");
     }
-    if(data["type"] != "airfoil"){
+    if(data["type"].cast<std::string>() != "airfoil"){
         throw std::runtime_error("Invalid data type for airfoil converter");
     }
     airfoil foil;
@@ -695,7 +691,7 @@ point dicToPoint(const py::dict& data){
     if(!data.contains("x") || !data.contains("y") || !data.contains("z") || !data.contains("idx") || !data.contains("type")){
         throw std::runtime_error("Invalid dictionary structure");
     }
-    if(data["type"] != "point"){
+    if(data["type"].cast<std::string>() != "point"){
         throw std::runtime_error("Invalid data type for point converter");
     }
     point p;
@@ -713,7 +709,7 @@ void updateDOBWithDic(const py::dict& data, SpanwiseVec<double>* ptr){ // Would 
     if(!data.contains("data") || !data.contains("coords") || !data.contains("type")){
         throw std::runtime_error("Invalid dictionary structure");
     }
-    if(data["type"] != "DOB"){
+    if(data["type"].cast<std::string>() != "DOB"){
         throw std::runtime_error("Invalid data type for DOB converter");
     }
     ptr->set(data["coords"].cast<std::vector<double>>(), data["data"].cast<std::vector<double>>());
@@ -727,7 +723,7 @@ void updateVECWithDic(const py::dict& data, SpanwiseVec<std::vector<double>>* pt
     if(!data.contains("data") || !data.contains("coords") || !data.contains("type")){
         throw std::runtime_error("Invalid dictionary structure");
     }
-    if(data["type"] != "VEC"){
+    if(data["type"].cast<std::string>() != "VEC"){
         throw std::runtime_error("Invalid data type for VEC converter");
     }
     ptr->set(data["coords"].cast<std::vector<double>>(), data["data"].cast<std::vector<std::vector<double>>>());
@@ -741,7 +737,7 @@ void updateAIRWithDic(const py::dict& data, SpanwiseVec<airfoil>* ptr){
     if(!data.contains("data") || !data.contains("coords") || !data.contains("type")){
         throw std::runtime_error("Invalid dictionary structure");
     }
-    if(data["type"] != "AIR"){
+    if(data["type"].cast<std::string>() != "AIR"){
         throw std::runtime_error("Invalid data type for AIR converter");
     }
     *ptr = dicToAIR(data); //I am so lazy to add a proper implementation now.
@@ -755,7 +751,7 @@ void updateSCAWithDic(const py::dict& data, double* ptr){
     if(!data.contains("data") || !data.contains("type")){
         throw std::runtime_error("Invalid dictionary structure");
     }
-    if(data["type"] != "SCA"){
+    if(data["type"].cast<std::string>() != "SCA"){
         throw std::runtime_error("Invalid data type for SCA converter");
     }
     *ptr = data["data"].cast<double>();
@@ -768,7 +764,7 @@ void updateAirfoilWithDic(const py::dict& data, airfoil* ptr){
     if(!data.contains("name") || !data.contains("chord") || !data.contains("attachmentPoint") || !data.contains("points") || !data.contains("type")){
         throw std::runtime_error("Invalid dictionary structure");
     }
-    if(data["type"] != "airfoil"){
+    if(data["type"].cast<std::string>() != "airfoil"){
         throw std::runtime_error("Invalid data type for airfoil converter");
     }
     *ptr = dicToAirfoil(data); //Lol
@@ -782,7 +778,7 @@ void updatePointWithDic(const py::dict& data, point* ptr){
     if(!data.contains("x") || !data.contains("y") || !data.contains("z") || !data.contains("idx") || !data.contains("type")){
         throw std::runtime_error("Invalid dictionary structure");
     }
-    if(data["type"] != "point"){
+    if(data["type"].cast<std::string>() != "point"){
         throw std::runtime_error("Invalid data type for point converter");
     }
     ptr->x = data["x"].cast<double>();
@@ -795,5 +791,5 @@ void updatePointWithDic(const py::dict& data, point* ptr){
 }
 
 namespace{
-static uasisi::ModuleRegistration<uasisi::SimpleLogger> registrationSimpleLogger("simpleLogger");
+static uasisi::ModuleRegistration<uasisi::PythonWrapper> registrationPythonWrapper("pythonWrapper");
 }
