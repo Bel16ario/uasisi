@@ -1,4 +1,5 @@
 #include "uasisi/core/orchestrator.hpp"
+#include "uasisi/core/module.hpp"
 #include <algorithm>
 #include <functional>
 #include <iostream>
@@ -189,6 +190,13 @@ void Orchestrator::configureModules(){
         std::cout << "Done\n";
     }
     this->isConfigured = true;
+}
+
+IModule* Orchestrator::getModule(const std::string& instanceName){
+    if(this->modules.find(instanceName) == this->modules.end()){
+        throw std::runtime_error("Module instance not found");
+    }
+    return this->modules[instanceName].get();
 }
 
 void Orchestrator::connectSignal(const std::string& signal, const std::vector<std::string>& moduleNames, const std::string& outputModule){

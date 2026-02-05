@@ -255,7 +255,7 @@ public:
     Eigen::Map<const Eigen::VectorXd>   SWDataAsEigen() const; //Only for double
     Eigen::Map<Eigen::VectorXd>         SWDataAsEigenMutable(); //more eigen converters could be added for variables of structs using the extractvariable function but seems unimportant for now. Ideally this class supports any data type but for now, only doubles, vectors of doubles and airfoils are supported.
     template<typename U = T, typename = std::enable_if_t<std::is_same_v<U, airfoil>>>
-    Eigen::VectorXd                      SWDataMemberAsEigen(double (U::*getter)() const) const; //for airfoil. At the moment it is hardcoded
+    Eigen::VectorXd                     SWDataMemberAsEigen(double (U::*getter)() const) const; //for airfoil. At the moment it is hardcoded
     Eigen::VectorXd                     SWDataRowAsEigen(size_t idx) const; //For vector
     
     bool                                hasNewData() const {return !this->dataHasBeenRead;} 
