@@ -202,20 +202,20 @@ endif()
 message(STATUS "DEBUG: UASISI_PYTHON_ENABLED = ${UASISI_PYTHON_ENABLED}")
 message(STATUS "DEBUG: UASISI_HAS_PYTORCH = ${UASISI_HAS_PYTORCH}")
 message(STATUS "DEBUG: TARGET uasisi_modules exists = $<TARGET_EXISTS:uasisi_modules>")
-#add_executable(simpleRun
-#    examples/simpleRun/simpleRun.cpp
-#)
+add_executable(simpleRun
+    examples/simpleRun/simpleRun.cpp
+)
 
-#if(TARGET uasisi_modules)
-#    target_link_libraries(simpleRun
-#        uasisi_core
-#        uasisi_modules
-#    )
-#else()
-#    target_link_libraries(simpleRun
-#        uasisi_core
-#    )
-#endif()
+if(TARGET uasisi_modules)
+    target_link_libraries(simpleRun
+        uasisi_core
+        uasisi_modules
+    )
+else()
+    target_link_libraries(simpleRun
+        uasisi_core
+    )
+endif()
 
 if(TARGET uasisi_modules AND UASISI_PYTHON_ENABLED)
     add_executable(test_python_wrapper
