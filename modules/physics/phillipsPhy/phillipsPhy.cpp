@@ -1,6 +1,7 @@
 //TODO: Implement obtainPolars() with xfoil and also add number of points and force angular distribution.
 
 #include "phillipsPhy.hpp"
+#include "uasisi/core/types.hpp"
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -20,7 +21,7 @@ void PhillipsPhy::init(){
     if(this->isSet){
         throw std::runtime_error("Module already initialized");
     } // I don't need to check for initial state I think because refresh methods already take care of it
-    if(!this->iTypeIsSet || !this->fCondsIsSet || !this->zOutIsSet){
+    if(!this->iTypeIsSet || !this->fCondsIsSet || !this->zOutIsSet || !this->domainIsSet){
         throw std::runtime_error("Module has not been fully set-up yet");
     }
     if(!this->isConnected){
@@ -29,25 +30,24 @@ void PhillipsPhy::init(){
     if((this->rGeometryIsConnected || this->rTwistIsConnected) && (this->rLiftIsConnected || this->rTLiftIsConnected || this->rRMomentIsConnected)){ // Input and output connected
     
         if(!this->rGeometryIsConnected && !this->foilIsSet){//Provide airfoils
-            this->interpGeo.resize(this->zOut.size() - 2);
+            this->interpGeo.resize(this->phiZ.size() - 2);
             for(airfoil& val : this->interpGeo){
                 val.setName(this->defaultFoil);
             }
             this->foilIsSet = true;
         }
         if(!this->rTwistIsConnected && !this->twistIsSet){//Provide twist
-            this->interpTwist.resize(this->zOut.size()-2);
+            this->interpTwist.resize(this->phiZ.size()-2);
             std::fill(this->interpTwist.begin(), this->interpTwist.end(), this->defaultTwist);
             this->twistIsSet = true;
         }
         if(!this->chordIsSet){//Provide chord 
-            this->chord.resize(this->zOut.size()-2);
+            this->chord.resize(this->phiZ.size()-2);
             std::fill(this->chord.begin(), this->chord.end(), this->defaultChord);
             this->chordIsSet = true;
         }
         this->refreshZ();
         this->refreshData();
-        this->translateDomain();
         this->computeRe();
         this->obtainPolars();
         if(!this->alpha0IsSet){
@@ -86,6 +86,9 @@ void PhillipsPhy::validateConnections(){
     }
     if(std::abs(this->zOut.back() - this->zOut[0] - this->span) > this->tolerance){
         throw std::runtime_error("Span and zOut do not match");
+    }
+    if(!this->nSWPointsIsSet){
+        throw std::runtime_error("nSWPoints must be set");
     }
     size_t inputCount = bool(this->realTwist) + bool(this->realGeometry);
     size_t outputCount = bool(this->realLift) + bool(this->realTotalLift) + bool(this->realRollingMoment);
@@ -226,13 +229,13 @@ void PhillipsPhy::computeRe(){
     if(!this->chordIsSet){
         throw std::runtime_error("Chords need to be set before computing Reynolds' numbers");
     }
-    if(!this->zOutIsSet){
-        throw std::runtime_error("zOut needs to be set before computing Reynolds' numbers");
+    if(!this->domainIsSet){
+        throw std::runtime_error("phiZ needs to be set before computing Reynolds' numbers");
     }
-    if(this->zOut.size() - 2 != this->chord.size()){
+    if(this->phiZ.size() - 2 != this->chord.size()){
         throw std::runtime_error("Size mismatch");
     }
-    this->Re.reserve(this->zOut.size() - 2);
+    this->Re.reserve(this->phiZ.size() - 2);
     for(double val : this->chord){
         this->Re.push_back(this->fConds.getDensity() * this->fConds.getVelocity().magnitude() * val / this->fConds.getViscosity());
     }
@@ -241,16 +244,16 @@ void PhillipsPhy::computeRe(){
 
 void PhillipsPhy::obtainPolars(){//For dev purposes just return constant for now
 
-    if(!this->zOutIsSet || !this->ReIsSet || !this->foilIsSet){
-        throw std::runtime_error("zOut, foil and Re must be set");
+    if(!this->domainIsSet || !this->ReIsSet || !this->foilIsSet){
+        throw std::runtime_error("phiZ, foil and Re must be set");
     }
     for(airfoil& val : this->interpGeo){
         if(val.size() == 0){
             val.generate(this->nPoints);
         }
     }
-    this->lSlope.resize(this->zOut.size() - 2);
-    this->alpha0L = Eigen::VectorXd::Zero(this->zOut.size() - 2);
+    this->lSlope.resize(this->phiZ.size() - 2);
+    this->alpha0L = Eigen::VectorXd::Zero(this->phiZ.size() - 2);
     for(size_t i = 0; i < this->lSlope.size(); i++){
         this->lSlope[i] = 6.5317;
         this->alpha0L(i) = -0.0375;
@@ -261,26 +264,32 @@ void PhillipsPhy::obtainPolars(){//For dev purposes just return constant for now
 
 void PhillipsPhy::translateDomain(){
 
-    if(!this->zOutIsSet || this->zOut.size() < 4){// the two tip points will be removed
+    if(!this->zOutIsSet || this->zOut.size() < 4 || !this->nSWPointsIsSet){// the two tip points will be removed
         throw std::runtime_error("zOut vector needs to be set before computing the domain");
     }
-    if(this->PhiIsSet){
+    if(this->PhiIsSet || this->domainIsSet){
         throw std::runtime_error("Phi vector is already set");
     }
-    this->phi.reserve(this->zOut.size() - 2);
+    this->phi.reserve(this->nSWPoints);
+    this->phiZ.reserve(this->nSWPoints + 2);
     double zCenter = (this->zOut[0] +  this->zOut.back()) * 0.5; //goes without saying that the coordinates should be ordered
     double r = std::abs(this->zOut.back() - zCenter);
-    double adj;
-    for(size_t i = 1; i < this->zOut.size() - 1; i++ ){
-        adj = this->zOut[i] - zCenter;
-        this->phi.push_back(std::acos(adj/r));
+    double dPhi = M_PI / (nSWPoints + 1);
+    this->phiZ.push_back(zCenter + r);
+    for(size_t i = 1; i < this->nSWPoints + 1; i++){
+        this->phi.push_back(i*dPhi);
+        this->phiZ.push_back(zCenter + this->span*0.5*std::cos(i*dPhi));
     }
+    this->phiZ.push_back(zCenter - r);
+    std::reverse(this->phi.begin(), this->phi.end());
+    std::reverse(this->phiZ.begin(), this->phiZ.end());
     this->PhiIsSet = true;
+    this->domainIsSet = true;
 
 }
 
 void PhillipsPhy::generateFij(){//
-    if(!this->zOutIsSet || !this->polarsAreSet || !this->spanIsSet || !this->chordIsSet || !this->PhiIsSet || !this->alpha0IsSet){
+    if(!this->zOutIsSet || !this->polarsAreSet || !this->spanIsSet || !this->chordIsSet || !this->PhiIsSet || !this->alpha0IsSet || !this->domainIsSet){
         throw std::runtime_error("Module not fully setup yet");
     }
     this->Fij.resize(this->phi.size(), this->phi.size());
@@ -297,20 +306,17 @@ void PhillipsPhy::generateFij(){//
 
 void PhillipsPhy::computeLift(){
 
-    if(!this->PhiIsSet || !this->fCondsIsSet || !this->FijIsSet || !this->AIsSet || !this->BIsSet || !this->zOutIsSet){
+    if(!this->PhiIsSet || !this->fCondsIsSet || !this->FijIsSet || !this->AIsSet || !this->BIsSet || !this->zOutIsSet || !this->domainIsSet){
         throw std::runtime_error("Requirements not met");
     }
     if(!this->isConnected){
         throw std::runtime_error("Module not connected/validated");
     }
     if(!(this->rLiftIsConnected || this->rTLiftIsConnected || this->rRMomentIsConnected)) return;
-    if(this->phi.size() != this->zOut.size() - 2){
-        throw std::runtime_error("Size mismatch");
-    }
     double sum;
     std::vector<double> liftTemp;
     Eigen::VectorXd AplusB = this->A + this->B;
-    liftTemp.reserve(this->zOut.size());
+    liftTemp.reserve(this->phiZ.size());
     liftTemp.push_back(0.0);
     for(size_t i = 0; i < this->phi.size(); i++){
         sum = 0.0;
@@ -322,13 +328,16 @@ void PhillipsPhy::computeLift(){
     }
     liftTemp.push_back(0.0);
     if(this->rLiftIsConnected && this->realLift){
-        this->realLift->set(this->zOut, liftTemp); // Is this copied? I can't think of a better way to account for the realLift output not being connected. In the init function, the 0 values at the edges are set, but maybe I could just set liftTemp to be at the realLift pointer even if it is not connected. Not sure
+        std::vector<double> liftTempInt;
+        liftTempInt.reserve(liftTemp.size());
+        liftTempInt = interpolate(this->phiZ, liftTemp, this->zOut, getInterpType(this->iType));
+        this->realLift->set(this->zOut, liftTempInt); // Is this copied? I can't think of a better way to account for the realLift output not being connected. In the init function, the 0 values at the edges are set, but maybe I could just set liftTemp to be at the realLift pointer even if it is not connected. Not sure
     }
     if(this->rTLiftIsConnected && this->realTotalLift){
-        *this->realTotalLift = trapz(this->zOut, liftTemp);
+        *this->realTotalLift = trapz(this->phiZ, liftTemp);
     }
     if(this->rRMomentIsConnected && this->realRollingMoment){
-        *this->realRollingMoment = trapzProduct(this->zOut, liftTemp, this->zOut);
+        *this->realRollingMoment = trapzProduct(this->phiZ, liftTemp, this->phiZ);
     }
 
 }
@@ -439,7 +448,7 @@ void PhillipsPhy::readZGeo(){
 
 void PhillipsPhy::readTwist(){
 
-    if(!this->isConnected || !this->realTwist || !this->rTwistIsConnected || !this->iTypeIsSet || !this->zIsSet){
+    if(!this->isConnected || !this->realTwist || !this->rTwistIsConnected || !this->iTypeIsSet || !this->zIsSet || !this->domainIsSet){
         throw std::runtime_error("Invalid module connections");
     } // I would like more checks to be safe but these could be read every step so better keep it fast
     if(!this->realTwist->hasNewData()){
@@ -448,7 +457,7 @@ void PhillipsPhy::readTwist(){
     if(this->realTwist->size() != this->zTwist.size()){
         throw std::runtime_error("Size mismatch");
     }
-    this->interpTwist = uasisi::interpolate(this->zTwist, this->realTwist->SWData(), this->zOut, getInterpType(this->iType));
+    this->interpTwist = uasisi::interpolate(this->zTwist, this->realTwist->SWData(), this->phiZ, getInterpType(this->iType));
     this->interpTwist.pop_back();
     this->interpTwist.erase(this->interpTwist.begin());
     this->interpTwistEigen = uasisi::vecAsEigen(this->interpTwist);
@@ -460,7 +469,7 @@ void PhillipsPhy::readTwist(){
 
 void PhillipsPhy::readGeo(){
 
-    if(!this->isConnected || !this->realGeometry || !this->rGeometryIsConnected || !this->iTypeIsSet || !this->zIsSet){
+    if(!this->isConnected || !this->realGeometry || !this->rGeometryIsConnected || !this->iTypeIsSet || !this->zIsSet || !this->domainIsSet){
         throw std::runtime_error("Invalid module connections");
     }
     if(!this->realGeometry->hasNewData()){
@@ -469,7 +478,7 @@ void PhillipsPhy::readGeo(){
     if(this->realGeometry->size() != this->zGeo.size()){
         throw std::runtime_error("Size mismatch");
     }
-    this->interpGeo = uasisi::interpolate(this->zGeo, this->realGeometry->SWData(), this->zOut, getInterpType(this->iType));
+    this->interpGeo = uasisi::interpolate(this->zGeo, this->realGeometry->SWData(), this->phiZ, getInterpType(this->iType));
     this->interpGeo.pop_back();
     this->interpGeo.erase(this->interpGeo.begin());
     this->chord = uasisi::extractMemberVector(this->interpGeo, &airfoil::getChord);
@@ -506,13 +515,13 @@ void PhillipsPhy::setAlpha0(const SpanwiseVec<double>& alphaNew){
     if(this->alpha0IsSet){
         throw std::runtime_error("alpha0 already set");
     }
-    if(!this->zOutIsSet || !this->iTypeIsSet){
-        throw std::runtime_error("zOut and iType must be set first");
+    if(!this->domainIsSet || !this->iTypeIsSet){
+        throw std::runtime_error("domain must be set and iType must be specified");
     }
     if(alphaNew.size() < 4){
         throw std::runtime_error("Size error");
     }
-    this->alpha0 = uasisi::vecAsEigen(uasisi::interpolate(alphaNew.coords(), alphaNew.SWData(), this->zOut, getInterpType(this->iType)));
+    this->alpha0 = uasisi::vecAsEigen(uasisi::interpolate(alphaNew.coords(), alphaNew.SWData(), this->phiZ, getInterpType(this->iType)));
     this->alpha0 = this->alpha0.segment(1, this->alpha0.size()-2);
     this->alpha0IsSet = true;
 }
@@ -524,13 +533,13 @@ void PhillipsPhy::setChord(const SpanwiseVec<double>& chordNew){
     if(this->chordIsSet){
         throw std::runtime_error("Chord already set");
     }
-    if(!this->zOutIsSet || !this->iTypeIsSet){
-        throw std::runtime_error("zOut and iType must be set first");
+    if(!this->domainIsSet || !this->iTypeIsSet){
+        throw std::runtime_error("Domain must be set and iType must be specified");
     }
     if(chordNew.size() < 4){
         throw std::runtime_error("Size error");
     }
-    this->chord = uasisi::interpolate(chordNew.coords(), chordNew.SWData(), this->zOut, getInterpType(this->iType));
+    this->chord = uasisi::interpolate(chordNew.coords(), chordNew.SWData(), this->phiZ, getInterpType(this->iType));
     this->chord.pop_back();
     this->chord.erase(this->chord.begin());
     this->chordIsSet = true;
@@ -543,13 +552,13 @@ void PhillipsPhy::setFoil(const SpanwiseVec<airfoil>& foilNew){
     if(this->foilIsSet){
         throw std::runtime_error("Airfoil vector already set");
     }
-    if(!this->zOutIsSet || !this->iTypeIsSet){
-        throw std::runtime_error("zOut and iType must be set first");
+    if(!this->domainIsSet || !this->iTypeIsSet){
+        throw std::runtime_error("Domain must be set and iType must be specified");
     }
     if(foilNew.size() < 4){
         throw std::runtime_error("Size error");
     }
-    this->interpGeo = uasisi::interpolate(foilNew.coords(), foilNew.SWData(), this->zOut, getInterpType(this->iType));
+    this->interpGeo = uasisi::interpolate(foilNew.coords(), foilNew.SWData(), this->phiZ, getInterpType(this->iType));
     this->interpGeo.pop_back();
     this->interpGeo.erase(this->interpGeo.begin());
     this->foilIsSet = true;
@@ -562,13 +571,13 @@ void PhillipsPhy::setTwist(const SpanwiseVec<double>& twistNew){
     if(this->twistIsSet){
         throw std::runtime_error("Twist vector already set");
     }
-    if(!this->zOutIsSet || !this->iTypeIsSet){
-        throw std::runtime_error("zOut and iType must be set first");
+    if(!this->domainIsSet || !this->iTypeIsSet){
+        throw std::runtime_error("Domain must be set and iType must be specified");
     }
     if(twistNew.size() < 4){
         throw std::runtime_error("Size error");
     }
-    this->interpTwist = uasisi::interpolate(twistNew.coords(), twistNew.SWData(), this->zOut, getInterpType(this->iType));
+    this->interpTwist = uasisi::interpolate(twistNew.coords(), twistNew.SWData(), this->phiZ, getInterpType(this->iType));
     this->interpTwist.pop_back();
     this->interpTwist.erase(this->interpTwist.begin());
     this->twistIsSet = true;
@@ -624,6 +633,23 @@ void PhillipsPhy::setNPoints(size_t nNew){
         throw std::runtime_error("Module already connected");
     }
     this->nPoints = nNew;
+}
+
+void PhillipsPhy::setNSWPoints(size_t nNew){
+    if(this->isSet || this->isConnected){
+        throw std::runtime_error("Module already connected");
+    }
+    if(nNew < 2){
+        throw std::runtime_error("Invalid amount of SW points");
+    }
+    if(!this->zOutIsSet){
+        throw std::runtime_error("zOut must be set first");
+    }
+    this->nSWPoints = nNew;
+    this->nSWPointsIsSet = true;
+    this->PhiIsSet = false;
+    this->domainIsSet = false;
+    this->translateDomain();
 }
 
 double trapz(const std::vector<double>& x, const std::vector<double>& y){

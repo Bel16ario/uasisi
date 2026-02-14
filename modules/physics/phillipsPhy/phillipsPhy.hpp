@@ -50,6 +50,7 @@ class PhillipsPhy : public IPhysics{
     void setDefaultChord(double chordNew);
     void setTolerance(double tolNew);
     void setNPoints(size_t nNew);
+    void setNSWPoints(size_t nNew);
 
     private:
 
@@ -75,6 +76,7 @@ class PhillipsPhy : public IPhysics{
     double defaultTwist = 0.0;
     double defaultChord = 1.0;
     size_t nPoints = 100;
+    size_t nSWPoints;
 
     FlightConditions fConds;
     std::vector<double> Re;
@@ -90,6 +92,7 @@ class PhillipsPhy : public IPhysics{
     std::vector<double> zTwist;
     std::vector<double> zGeo;
     std::vector<double> phi;
+    std::vector<double> phiZ;
     std::vector<double> zOut; //Must be set even if only scalar outputs are used
 
     std::vector<double> interpTwist;
@@ -112,7 +115,9 @@ class PhillipsPhy : public IPhysics{
     bool twistIsSet = false;
     bool AIsSet = false;
     bool BIsSet = false;
+    bool nSWPointsIsSet = false;
 
+    bool domainIsSet = false;
     bool isConnected = false;
     bool rTwistIsConnected = false;
     bool rGeometryIsConnected = false;

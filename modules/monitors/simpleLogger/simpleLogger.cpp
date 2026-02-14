@@ -195,10 +195,6 @@ void SimpleLogger::createFile(){
 
 }
 
-std::string SimpleLogger::getFileName(){ //I should add another common Module method run at the end of simulation. In the case of this module for example, it could print the fileName
-    return this->getFileName();
-}
-
 void SimpleLogger::createDatasets(){
     if(this->isSet){
         throw std::runtime_error("Module already initialized");

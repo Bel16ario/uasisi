@@ -199,6 +199,32 @@ IModule* Orchestrator::getModule(const std::string& instanceName){
     return this->modules[instanceName].get();
 }
 
+const SpanwiseVec<double>* Orchestrator::getDOB(const std::string& signalName){
+    if(this->signalsDOB.find(signalName) == this->signalsDOB.end()){
+        throw std::runtime_error("Signal not found");
+    }
+    return this->signalsDOB[signalName].get();
+}
+
+const SpanwiseVec<std::vector<double>>* Orchestrator::getVEC(const std::string& signalName){
+    if(this->signalsVEC.find(signalName) == this->signalsVEC.end()){
+        throw std::runtime_error("Signal not found");
+    }
+    return this->signalsVEC[signalName].get();
+}
+const SpanwiseVec<airfoil>* Orchestrator::getAIR(const std::string& signalName){
+    if(this->signalsAIR.find(signalName) == this->signalsAIR.end()){
+        throw std::runtime_error("Signal not found");
+    }
+    return this->signalsAIR[signalName].get();
+}
+const double* Orchestrator::getSCA(const std::string& signalName){
+    if(this->signalsSCA.find(signalName) == this->signalsSCA.end()){
+        throw std::runtime_error("Signal not found");
+    }
+    return this->signalsSCA[signalName].get();
+}
+
 void Orchestrator::connectSignal(const std::string& signal, const std::vector<std::string>& moduleNames, const std::string& outputModule){
     if(this->isConnected || this->isSet || !this->signalsFiltered){
         throw std::runtime_error("Orchestrator already connected/set");

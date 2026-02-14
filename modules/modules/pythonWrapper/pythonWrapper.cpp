@@ -18,7 +18,6 @@ namespace uasisi{
 
 PythonWrapper::PythonWrapper(){
     std::cout << "Python Wrapper created\n";
-    PythonInterpreter::getInstance();
 }
 
 void PythonWrapper::init(){
@@ -346,7 +345,7 @@ void PythonWrapper::step(double t, double dt){
     }
     this->updateInputDict();
     this->outputDict = py::dict(); //Fresh dictionary
-    this->outputDict = this->stepFunc("t"_a=t, "dt"_a=dt, "inputs"_a=this->inputDict, **this->initKwargs);
+    this->outputDict = this->stepFunc("t"_a=t, "dt"_a=dt, "inputs"_a=this->inputDict, **this->stepKwargs);
     this->readOutputDict();
 }
 
@@ -374,14 +373,14 @@ void PythonWrapper::updateInputDict(){
         for(const auto& [name, ptr] : this->dataDirInAIR){
             signalsAIR[name.c_str()] = airToDic(*ptr);
         }
-        this->inputDict["DOB"] = signalsAIR;
+        this->inputDict["AIR"] = signalsAIR;
     }
     if(!this->dataDirInSCA.empty()){
         py::dict signalsSCA;
         for(const auto& [name, ptr] : this->dataDirInSCA){
             signalsSCA[name.c_str()] = scaToDic(*ptr);
         }
-        this->inputDict["DOB"] = signalsSCA;
+        this->inputDict["SCA"] = signalsSCA;
     }
 }
 
@@ -392,9 +391,11 @@ void PythonWrapper::readOutputDict(){
     py::dict groupDict;
     py::dict signalDict;
     std::string signalName;
+    std::string groupName;
     for(const auto& signalGroups : this->outputDict){
+        groupName = py::str(signalGroups.first);
         groupDict = signalGroups.second.cast<py::dict>();
-        if(groupDict.contains("DOB")){
+        if(groupName == "DOB"){
             for(const auto& signal : groupDict){
                 signalName = py::str(signal.first);
                 if(this->dataDirOutDOB.find(signalName) == this->dataDirOutDOB.end()){
@@ -404,7 +405,7 @@ void PythonWrapper::readOutputDict(){
                 updateDOBWithDic(signalDict, this->dataDirOutDOB[signalName]);
             }
         }
-        if(groupDict.contains("VEC")){
+        if(groupName == "VEC"){
             for(const auto& signal : groupDict){
                 signalName = py::str(signal.first);
                 if(this->dataDirOutVEC.find(signalName) == this->dataDirOutVEC.end()){
@@ -414,7 +415,7 @@ void PythonWrapper::readOutputDict(){
                 updateVECWithDic(signalDict, this->dataDirOutVEC[signalName]);
             }
         }
-        if(groupDict.contains("AIR")){
+        if(groupName == "AIR"){
             for(const auto& signal : groupDict){
                 signalName = py::str(signal.first);
                 if(this->dataDirOutAIR.find(signalName) == this->dataDirOutAIR.end()){
@@ -424,7 +425,7 @@ void PythonWrapper::readOutputDict(){
                 updateAIRWithDic(signalDict, this->dataDirOutAIR[signalName]);
             }
         }
-        if(groupDict.contains("SCA")){
+        if(groupName == "SCA"){
             for(const auto& signal : groupDict){
                 signalName = py::str(signal.first);
                 if(this->dataDirOutSCA.find(signalName) == this->dataDirOutSCA.end()){
@@ -515,22 +516,42 @@ void PythonWrapper::setStepKwargs(const PythonConfigDict& kwargsNew){
 
 
 void PythonWrapper::execCommand(const std::string& command, const PythonConfigDict& kwargs){
-    py::object scope = py::module_::import("__main__").attr("__dict__");
+    py::object scope;
+    if(this->scriptIsLoaded){
+        scope = this->pythonModule.attr("__dict__");
+    } else {
+        scope = py::module_::import("__main__").attr("__dict__");
+    }
     py::exec(command, scope, kwargs.getDict());
 }
 
 void PythonWrapper::execSnippet(const std::string& snippet){
-    py::object scope = py::module_::import("__main__").attr("__dict__");
+    py::object scope;
+    if(this->scriptIsLoaded){
+        scope = this->pythonModule.attr("__dict__");
+    } else {
+        scope = py::module_::import("__main__").attr("__dict__");
+    }
     py::exec(snippet, scope);
 }
 
 void PythonWrapper::execScript(const std::string& scriptPath){
-    py::object scope = py::module_::import("__main__").attr("__dict__");
+    py::object scope;
+    if(this->scriptIsLoaded){
+        scope = this->pythonModule.attr("__dict__");
+    } else {
+        scope = py::module_::import("__main__").attr("__dict__");
+    }
     py::eval_file(scriptPath, scope);
 }
 
 py::object PythonWrapper::execCommandWithReturn(const std::string& command, const PythonConfigDict& kwargs){
-    py::object scope = py::module_::import("__main__").attr("__dict__");
+    py::object scope;
+    if(this->scriptIsLoaded){
+        scope = this->pythonModule.attr("__dict__");
+    } else {
+        scope = py::module_::import("__main__").attr("__dict__");
+    }
     return py::eval(command, scope, kwargs.getDict());
 }
 

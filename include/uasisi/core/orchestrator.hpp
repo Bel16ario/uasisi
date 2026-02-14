@@ -9,7 +9,6 @@
 #include <memory>
 #include <iostream>
 
-#include "uasisi/io/config.hpp"
 #include "uasisi/core/types.hpp"
 #include "uasisi/core/module.hpp"
 
@@ -30,6 +29,10 @@ public:
     //I have a dilemma, I need to configure each module. I am not sure but I think that since I have IModule pointers, I might need to dynamic cast to access the configuration methods in each module. I could return the pointer to the main file with the createModule() method but I don't want the main file to be able to access the init(), declare(), etc methods. I also want the configuration of each module to be done in the main file, ideally through helper functions. Maybe I could pass these config functions to the orchestrator as functionals or lambda functions or whatever they are called. They would need to be passed in the createModule method and stored in a map like the pointers and the priorities. Can you even have a map of functions?. All the config functions have the same return type (void) which maybe helps.
 
     IModule* getModule(const std::string& instanceName); // I am not sure how safe this is, returning a raw pointer, but I like this solution of only breaking abstraction on user request.
+    const SpanwiseVec<double>* getDOB(const std::string& signalName);
+    const SpanwiseVec<std::vector<double>>* getVEC(const std::string& signalName);
+    const SpanwiseVec<airfoil>* getAIR(const std::string& signalName);
+    const double* getSCA(const std::string& signalName);
 
 private:
 

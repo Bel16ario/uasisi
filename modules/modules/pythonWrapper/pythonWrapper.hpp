@@ -74,6 +74,11 @@ class PythonWrapper : public IModule{
 
     private:
 
+    struct InterpreterGuard {
+        InterpreterGuard() { PythonInterpreter::getInstance(); }
+    };
+    InterpreterGuard interpGuard;
+
     std::string name = "PythonWrapper";
     std::filesystem::path filePath;
 

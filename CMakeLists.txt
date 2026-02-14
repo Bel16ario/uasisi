@@ -202,39 +202,19 @@ endif()
 message(STATUS "DEBUG: UASISI_PYTHON_ENABLED = ${UASISI_PYTHON_ENABLED}")
 message(STATUS "DEBUG: UASISI_HAS_PYTORCH = ${UASISI_HAS_PYTORCH}")
 message(STATUS "DEBUG: TARGET uasisi_modules exists = $<TARGET_EXISTS:uasisi_modules>")
-add_executable(simpleRun
-    examples/simpleRun/simpleRun.cpp
+add_executable(reinforcementLearning
+    examples/reinforcementLearning/reinforcementLearning.cpp
 )
 
 if(TARGET uasisi_modules)
-    target_link_libraries(simpleRun
+    target_link_libraries(reinforcementLearning
         uasisi_core
         uasisi_modules
     )
 else()
-    target_link_libraries(simpleRun
+    target_link_libraries(reinforcementLearning
         uasisi_core
     )
-endif()
-
-if(TARGET uasisi_modules AND UASISI_PYTHON_ENABLED)
-    add_executable(test_python_wrapper
-        tests/test_python_wrapper.cpp
-    )
-    
-    target_link_libraries(test_python_wrapper
-        uasisi_core
-        uasisi_modules
-    )
-    
-    # Also apply the Python definitions to test executable
-    target_compile_definitions(test_python_wrapper PRIVATE UASISI_HAS_PYTHON_MODULE)
-    
-    if(UASISI_HAS_PYTORCH)
-        target_compile_definitions(test_python_wrapper PRIVATE UASISI_HAS_PYTORCH)
-    endif()
-    
-    message(STATUS "Python wrapper test executable will be built")
 endif()
 
 # ============================================================================

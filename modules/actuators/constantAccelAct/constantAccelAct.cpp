@@ -166,7 +166,7 @@ void ConstantAccelAct::step(double t, double dt){ // I honestly think like these
             double deltaTheta;
             double stopDistance;
             for(size_t i = 0; i < this->z.size(); i++){
-                if(!(this->theta[i] >= this->centerPos[i] + this->maxPos[i] || this->theta[i] <= this->centerPos[i] - this->maxPos[i])){
+                if(!(this->theta[i] > this->centerPos[i] + this->maxPos[i] || this->theta[i] < this->centerPos[i] - this->maxPos[i])){
                     posError = (*this->targetGeometryDOB)[i] - this->theta[i];
                     if(std::abs(posError) < this->posTol){
                         this->omega[i] = 0.0;
@@ -188,9 +188,9 @@ void ConstantAccelAct::step(double t, double dt){ // I honestly think like these
                         this->omega[i] = 0.0;
                     }
                     this->theta[i] += deltaTheta;
-                } else if(this->theta[i] >= this->centerPos[i] + this->maxPos[i]){
+                } else if(this->theta[i] > this->centerPos[i] + this->maxPos[i]){
                     this->theta[i] = this->centerPos[i] + this->maxPos[i];
-                } else if(this->theta[i] <= this->centerPos[i] - this->maxPos[i]){
+                } else if(this->theta[i] < this->centerPos[i] - this->maxPos[i]){
                     this->theta[i] = this->centerPos[i] - this->maxPos[i];
                 }
             }
