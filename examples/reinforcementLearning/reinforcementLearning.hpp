@@ -1,12 +1,17 @@
 #ifndef REINFORCEMENTLEARNING_HPP
 #define REINFORCEMENTLEARNING_HPP
 
+#include <asm-generic/ioctls.h>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
 #include <pybind11/stl.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 #include "control/constantCtrl/constantCtrl.hpp"
 #include "uasisi/core/module.hpp"
 #include "uasisi/core/orchestrator.hpp"
@@ -15,6 +20,7 @@
 #include "optimizer/randomOpt/randomOpt.hpp"
 #include "monitors/simpleLogger/simpleLogger.hpp"
 #include "actuators/constantAccelAct/constantAccelAct.hpp"
+#include "actuators/perfectAct/perfectAct.hpp"
 #include "modules/pythonWrapper/pythonWrapper.hpp"
 #include "physics/phillipsPhy/phillipsPhy.hpp"
 #include "uasisi/utils/pybindhelper.hpp"
@@ -25,8 +31,9 @@ using namespace uasisi;
 #define SPAN 6.0
 #define STPSZ 0.001
 #define UPDR 400
-#define NUPDSTRAIN 1000
+#define NUPDSTRAIN 20000
 #define NUPDSTEST 30
+#define BATCHESPERTARGET 1
     
 inline double toRad(double theta){return (theta*M_PI)/180.0;}
 
@@ -40,7 +47,51 @@ inline std::vector<double> omega(NACTS + 2, 0.0);
 inline std::vector<double> zPts;
 inline std::vector<double> zActs;
 
-size_t nSteps;
+inline int getTermWidth(){
+    struct winsize term;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &term);
+    return term.ws_col;
+}
+
+inline void printProgress(std::ostream& console, double progress, int steps, int uRate){
+    int width = getTermWidth();
+    double progressPC = progress*100;
+    int updates;
+    if(!uRate){
+        updates = 0;
+    } else {
+        updates = static_cast<int>(steps / uRate);
+    }
+    std::ostringstream info;
+    info << " " << std::fixed << std::setprecision(1) << progressPC << "% | ";
+    info << steps << " steps";
+    if(uRate > 0){
+    info << " | " << updates << " param updates";
+    }
+    std::string infoStr = info.str();
+    int infolen = infoStr.length();
+    if(infolen > width){
+        return;
+    }
+    width -= infolen;
+    if(!(width < 3)){
+        int filled = static_cast<int>(progress*(width - 2));
+        console << "\r[";
+        for(size_t i = 0; i < width - 2; i++){
+            if(i < filled){
+                console << "█";
+            } else {
+                console << " ";
+            }
+        }
+        console << "]" << infoStr << std::flush;
+    } else {
+        console << "\r" << infoStr << std::flush;
+    }
+
+}
+
+inline size_t nSteps;
 
 inline void constantCtrlConfig1(IModule* mod){
     ConstantCtrl* ctrlPtr = dynamic_cast<ConstantCtrl*>(mod);
@@ -98,24 +149,20 @@ inline void phillipsPhyConfig1(IModule* mod){
     phyPtr->updateFConds(fConds);
 }
 
-inline void constantAccelActConfig2(IModule* mod){
-    ConstantAccelAct* actPtr = dynamic_cast<ConstantAccelAct*>(mod);
+inline void perfectActConfig2(IModule* mod){
+    PerfectAct* actPtr = dynamic_cast<PerfectAct*>(mod);
     if(!actPtr){
         throw std::runtime_error("Problem casting from IModule class");
     }
 
     actPtr->setIType(interpType::LIN);
-    
+    actPtr->setAddThickness(true);
+    actPtr->setDType(DataType::DOB);
+    actPtr->setThickness(0.025);
     actPtr->setZ(zActs);
     actPtr->setZOut(zPts);
-    actPtr->setMaxPos(maxPos);
-    actPtr->setMaxVel(maxVel);
-    actPtr->setMaxAccel(maxAccel);
-    actPtr->setCenterPos(centerPos);
-    actPtr->setTheta(theta);
-    actPtr->setOmega(omega);
     actPtr->setThickness(0.05);
-    actPtr->setAddThickness(true);
+    actPtr->setInitialStateDOB(theta);
 
 }
 
@@ -127,7 +174,7 @@ inline void pythonWrapperConfig2(IModule* mod){
     pyPtr->setScriptPath("../examples/reinforcementLearning/reinforcementLearning.py");
     pyPtr->loadScript();
     PythonConfigDict emptyDict;
-    pyPtr->execCommand("uasisiConfig.updatePeriod = " + std::to_string(nSteps*2), emptyDict);
+    pyPtr->execCommand("uasisiConfig.updatePeriod = " + std::to_string(UPDR), emptyDict);
     pyPtr->execCommand("uasisiConfig.training = True", emptyDict);
 
     py::module_ torchMod = py::module_::import("torch");
@@ -202,6 +249,27 @@ inline void pythonWrapperConfig3(IModule* mod){
     pyPtr->execCommand("uasisiConfig.maxPos = maxPos", maxPosConfig);
     pyPtr->execCommand("uasisiConfig.centerPos = centerPos", centerPosConfig);
     pyPtr->execCommand("uasisiConfig.theta = theta", thetaConfig);
+
+}
+
+inline void constantAccelActConfig3(IModule* mod){
+    ConstantAccelAct* actPtr = dynamic_cast<ConstantAccelAct*>(mod);
+    if(!actPtr){
+        throw std::runtime_error("Problem casting from IModule class");
+    }
+    
+    actPtr->setIType(interpType::LIN);
+    
+    actPtr->setZ(zActs);
+    actPtr->setZOut(zPts);
+    actPtr->setMaxPos(maxPos);
+    actPtr->setMaxVel(maxVel);
+    actPtr->setMaxAccel(maxAccel);
+    actPtr->setCenterPos(centerPos);
+    actPtr->setTheta(theta);
+    actPtr->setOmega(omega);
+    actPtr->setThickness(0.05);
+    actPtr->setAddThickness(true);
 
 }
 

@@ -8,7 +8,6 @@ if torch.cuda.is_available():
     device = torch.device('cuda')
 else:
     device = torch.device('cpu')
-print(device)
 
 
 class ModuleConfig:
@@ -21,6 +20,7 @@ class ModuleConfig:
     theta = None
     steps = 0
     actBits = 8
+    liftRange = None
 
     batchRewards = []
     batchObservations = []
@@ -65,19 +65,15 @@ def dictToTorch(data):  # Meant to run on each signal dict
     return coordsTensor, dataTensor
 
 
-def computeReward(currError, prevError):
-    totalCurrError = torch.trapezoid(currError)
-    reward = -totalCurrError
-    return totalCurrError, reward
+def computeReward(tLift, rLift, z):
+    totalError = torch.trapezoid((tLift - rLift).abs(), z)
+    reward = -totalError
+    return totalError, reward
 
 
-def rewardToGo(rewards, r=0.99):
+def rewardWeights(rewards):
     rewards = torch.tensor(rewards)
-    n = len(rewards)
-    rewardsTG = torch.zeros(n)
-    for i in reversed(range(n)):
-        rewardsTG[i] = rewards[i] + (r*rewardsTG[i+1] if i+1 < n else 0)
-    return rewardsTG
+    return rewards
 
 
 def torchToDict(data, coords=None):
@@ -125,7 +121,7 @@ class ctrlCNN(nn.Module):
         self.kSz = kSize
         self.pdd = round((self.kSz - 1) / 2)
 
-        self.conv1 = nn.Conv1d(4, self.inCh, kernel_size=self.kSz, padding=self.pdd)
+        self.conv1 = nn.Conv1d(1, self.inCh, kernel_size=self.kSz, padding=self.pdd)
 
         self.convds = nn.ModuleList()
         for _ in range(self.maxDs):
@@ -140,13 +136,11 @@ class ctrlCNN(nn.Module):
         self.pool = nn.AdaptiveAvgPool1d(self.nActs)
 
         self.outCh = round(math.sqrt(self.inCh))
-        self.perActuator = nn.ModuleList([  # Flatten with per-actuator weights
-            nn.Sequential(
+        self.chCollapse = nn.Sequential(
                 nn.Linear(self.inCh, self.outCh),
                 nn.ReLU(),
                 nn.Linear(self.outCh, 1)
-            ) for _ in range(self.nActs)
-        ])
+        )
 
         self.fc = nn.Sequential(
             nn.Linear(self.nActs, 2*self.nActs),
@@ -163,11 +157,7 @@ class ctrlCNN(nn.Module):
         x = F.relu(self.conv2(x))
         x = self.pool(x)
         x = x.transpose(1, 2)
-        y = []
-        for i in range(self.nActs):
-            yAct = self.perActuator[i](x[:, i, :])
-            y.append(yAct)
-        y = torch.cat(y, dim=1)
+        y = self.chCollapse(x).squeeze(-1)
         mu = self.fc(y)
         sigma = self.logSigma.exp()
         return Normal(mu, sigma)
@@ -194,11 +184,12 @@ def declareSignals():
     return [
         {'name': 'targetLift', 'dType': 'DOB', 'sType': 'IN'},
         {'name': 'realLift', 'dType': 'DOB', 'sType': 'IN'},
-        {'name': 'realGeometry', 'dType': 'DOB', 'sType': 'IN'},
         {'name': 'targetGeometry', 'dType': 'DOB', 'sType': 'OUT'},
         {'name': 'realError', 'dType': 'VEC', 'sType': 'OUT'},  # For vis
         {'name': 'totalError', 'dType': 'SCA', 'sType': 'OUT'},
-        {'name': 'reward', 'dType': 'SCA', 'sType': 'OUT'}
+        {'name': 'reward', 'dType': 'SCA', 'sType': 'OUT'},
+        {'name': 'sigma', 'dType': 'DOB', 'sType': 'OUT'},
+        {'name': 'averageSigma', 'dType': 'SCA', 'sType': 'OUT'}
     ]
 
 
@@ -217,34 +208,29 @@ def init(inputs, model, optimizer):
         raise RuntimeError("Size mismatch")
     if 'DOB' not in inputs:
         raise RuntimeError("Invalid input dict structure")
-    if not ('targetLift' in inputs['DOB'] and
-            'realLift' in inputs['DOB'] and
-            'realGeometry' in inputs['DOB']):
+    if not ('targetLift' in inputs['DOB']):
         raise RuntimeError("Missing signals")
 
     pts = len(inputs['DOB']['targetLift']['coords'])
-    uasisiConfig.inputTensor = torch.zeros(1, 4, pts)
+    uasisiConfig.inputTensor = torch.zeros(1, 1, pts)
 
     model.to(device)
+    sigma = model.logSigma.exp().detach().cpu()
 
     def initTrain():
 
         model.train()
         coords, tLift = dictToTorch(inputs['DOB']['targetLift'])
         rLift = torch.zeros_like(tLift)
-        uasisiConfig.inputTensor[0, 0, :] = tLift - rLift
-        uasisiConfig.inputTensor[0, 1, :] = interp(coords, uasisiConfig.actCoords, uasisiConfig.theta)
-        uasisiConfig.inputTensor[0, 2, :] = tLift - rLift
-        uasisiConfig.inputTensor[0, 3, :] = uasisiConfig.inputTensor[0, 1, :]
-        tError, reward = computeReward(uasisiConfig.inputTensor[0, 2, :], uasisiConfig.inputTensor[0, 0, :])
+        uasisiConfig.inputTensor[0, 0, :] = tLift / uasisiConfig.liftRange;
+        tError = torch.tensor(0.0)
+        reward = torch.tensor(0.0)
 
         uasisiConfig.batchObservations = []
         uasisiConfig.batchRewards = []
         uasisiConfig.batchZ = []
-
-        uasisiConfig.inputTensor = uasisiConfig.inputTensor.to(device)
-        y = interp(uasisiConfig.actCoords, coords, uasisiConfig.inputTensor[0, 3, :])
-        rError = torch.stack([tLift, rLift, uasisiConfig.inputTensor[0, 2, :]], dim=1)
+        y = uasisiConfig.theta
+        rError = torch.stack([tLift, rLift, tLift-rLift], dim=1)
         outputs['DOB'] = {}
         outputs['VEC'] = {}
         outputs['SCA'] = {}
@@ -252,6 +238,8 @@ def init(inputs, model, optimizer):
         outputs['VEC']['realError'] = torchToDict(data=rError, coords=coords)
         outputs['SCA']['totalError'] = torchToDict(data=tError.item())
         outputs['SCA']['reward'] = torchToDict(data=reward.item())
+        outputs['DOB']['sigma'] = torchToDict(data=sigma, coords=uasisiConfig.actCoords)
+        outputs['SCA']['averageSigma'] = torchToDict(data=sigma.mean().item())
         return outputs
 
     def initTest():
@@ -260,15 +248,10 @@ def init(inputs, model, optimizer):
         model.eval()
         coords, tLift = dictToTorch(inputs['DOB']['targetLift'])
         rLift = torch.zeros_like(tLift)
-        uasisiConfig.inputTensor[0, 0, :] = tLift - rLift
-        uasisiConfig.inputTensor[0, 1, :] = interp(coords, uasisiConfig.actCoords, uasisiConfig.theta)
-        uasisiConfig.inputTensor[0, 2, :] = tLift - rLift
-        uasisiConfig.inputTensor[0, 3, :] = uasisiConfig.inputTensor[0, 1, :]
-        tError, reward = computeReward(uasisiConfig.inputTensor[0, 2, :], uasisiConfig.inputTensor[0, 0, :])
-
-        uasisiConfig.inputTensor = uasisiConfig.inputTensor.to(device)
-        y = interp(uasisiConfig.actCoords, coords, uasisiConfig.inputTensor[0, 3, :])
-        rError = torch.stack([tLift, rLift, uasisiConfig.inputTensor[0, 2, :]], dim=1)
+        uasisiConfig.inputTensor[0, 0, :] = tLift / uasisiConfig.liftRange;
+        tError, reward = computeReward(tLift, rLift, coords)
+        y = uasisiConfig.theta
+        rError = torch.stack([tLift, rLift, tLift-rLift], dim=1)
         outputs['DOB'] = {}
         outputs['VEC'] = {}
         outputs['SCA'] = {}
@@ -276,6 +259,8 @@ def init(inputs, model, optimizer):
         outputs['VEC']['realError'] = torchToDict(data=rError, coords=coords)
         outputs['SCA']['totalError'] = torchToDict(data=tError.item())
         outputs['SCA']['reward'] = torchToDict(data=reward.item())
+        outputs['DOB']['sigma'] = torchToDict(data=sigma, coords=uasisiConfig.actCoords)
+        outputs['SCA']['averageSigma'] = torchToDict(data=sigma.mean().item())
         return outputs
 
     if uasisiConfig.training:
@@ -286,34 +271,34 @@ def init(inputs, model, optimizer):
     return outputs
 
 
-def step(inputs, t, dt, model, optimizer, mode=None):
+def step(inputs, t, dt, model, optimizer):
 
     if 'DOB' not in inputs:
         raise RuntimeError("Invalid input dict structure")
-    if not ('targetLift' in inputs['DOB'] and
-            'realLift' in inputs['DOB'] and
-            'realGeometry' in inputs['DOB']):
+    if not ('targetLift' in inputs['DOB']):
         raise RuntimeError("Missing signals")
 
     def getLoss(obs, z, weights):
         logP = model.computeLogP(obs, z)
         return -(logP * weights).mean()
 
+    sigma = model.logSigma.exp().detach().cpu()
+
     def stepTrain():
 
         outputs = {}
-        uasisiConfig.inputTensor[0, 0, :] = uasisiConfig.inputTensor[0, 2, :]  # Previous error
-        uasisiConfig.inputTensor[0, 1, :] = uasisiConfig.inputTensor[0, 3, :]  # Previous position
+        coords, rLift = dictToTorch(inputs['DOB']['realLift'])
+        rLift /= uasisiConfig.liftRange
+        tLift = uasisiConfig.inputTensor[0, 0, :]
+        tError, reward = computeReward(tLift, rLift, coords)
+        rError = torch.stack([tLift, rLift, tLift - rLift], dim=1)
         coords, tLift = dictToTorch(inputs['DOB']['targetLift'])
-        _, rLift = dictToTorch(inputs['DOB']['realLift'])
-        uasisiConfig.inputTensor[0, 2, :] = tLift - rLift
-        _, uasisiConfig.inputTensor[0, 3, :] = dictToTorch(inputs['DOB']['realGeometry'])
-        tError, reward = computeReward(uasisiConfig.inputTensor[0, 2, :], uasisiConfig.inputTensor[0, 0, :])
+        uasisiConfig.inputTensor[0, 0, :] = tLift / uasisiConfig.liftRange;
 
         if (uasisiConfig.steps % uasisiConfig.updatePeriod == 0):
-            batchObs = torch.cat(uasisiConfig.batchObservations, dim=0)
-            batchZ = torch.cat(uasisiConfig.batchZ, dim=0)
-            batchWeights = rewardToGo(uasisiConfig.batchRewards)
+            batchObs = torch.cat(uasisiConfig.batchObservations[:-1], dim=0)
+            batchZ = torch.cat(uasisiConfig.batchZ[:-1], dim=0)
+            batchWeights = rewardWeights(uasisiConfig.batchRewards[1:])
             batchWeights = (batchWeights - batchWeights.mean()) / (batchWeights.std() + 1e-8)
             batchWeights = batchWeights.to(device)
             optimizer.zero_grad()
@@ -329,7 +314,6 @@ def step(inputs, t, dt, model, optimizer, mode=None):
         uasisiConfig.batchRewards.append(reward.item())
         z, y = model.getAction(uasisiConfig.inputTensor)
         uasisiConfig.batchZ.append(z.clone())
-        rError = torch.stack([tLift, rLift, uasisiConfig.inputTensor[0, 2, :]], dim=1)
         outputs['DOB'] = {}
         outputs['VEC'] = {}
         outputs['SCA'] = {}
@@ -337,22 +321,23 @@ def step(inputs, t, dt, model, optimizer, mode=None):
         outputs['VEC']['realError'] = torchToDict(data=rError, coords=coords)
         outputs['SCA']['totalError'] = torchToDict(data=tError.item())
         outputs['SCA']['reward'] = torchToDict(data=reward.item())
+        outputs['DOB']['sigma'] = torchToDict(data=sigma, coords=uasisiConfig.actCoords)
+        outputs['SCA']['averageSigma'] = torchToDict(data=sigma.mean().item())
         return outputs
 
     def stepTest():
 
         outputs = {}
-        uasisiConfig.inputTensor[0, 0, :] = uasisiConfig.inputTensor[0, 2, :]  # Previous error
-        uasisiConfig.inputTensor[0, 1, :] = uasisiConfig.inputTensor[0, 3, :]  # Previous position
-        coords, tLift = dictToTorch(inputs['DOB']['targetLift'])
-        _, rLift = dictToTorch(inputs['DOB']['realLift'])
-        uasisiConfig.inputTensor[0, 2, :] = tLift - rLift
-        _, uasisiConfig.inputTensor[0, 3, :] = dictToTorch(inputs['DOB']['realGeometry'])
-        tError, reward = computeReward(uasisiConfig.inputTensor[0, 2, :], uasisiConfig.inputTensor[0, 0, :])
+        coords, rLift = dictToTorch(inputs['DOB']['realLift'])
+        rLift /= uasisiConfig.liftRange
+        tLift = uasisiConfig.inputTensor[0, 0, :]
+        tError, reward = computeReward(tLift, rLift, coords)
+        rError = torch.stack([tLift, rLift, tLift-rLift], dim=1)
+        _, tLift = dictToTorch(inputs['DOB']['targetLift'])
+        uasisiConfig.inputTensor[0, 0, :] = tLift / uasisiConfig.liftRange
 
         uasisiConfig.inputTensor = uasisiConfig.inputTensor.to(device)
         _, y = model.getAction(uasisiConfig.inputTensor, deterministic=True)
-        rError = torch.stack([tLift, rLift, uasisiConfig.inputTensor[0, 2, :]], dim=1)
         outputs['DOB'] = {}
         outputs['VEC'] = {}
         outputs['SCA'] = {}
@@ -360,6 +345,8 @@ def step(inputs, t, dt, model, optimizer, mode=None):
         outputs['VEC']['realError'] = torchToDict(data=rError, coords=coords)
         outputs['SCA']['totalError'] = torchToDict(data=tError.item())
         outputs['SCA']['reward'] = torchToDict(data=reward.item())
+        outputs['DOB']['sigma'] = torchToDict(data=sigma, coords=uasisiConfig.actCoords)
+        outputs['SCA']['averageSigma'] = torchToDict(data=sigma.mean().item())
         return outputs
 
     if uasisiConfig.training:
@@ -376,8 +363,7 @@ def saveModel(model, optimizer, fileName):
     torch.save(sd, fileName)
 
 
-def loadModel(fileName, nPoints, nActuators, conv1Ch=8, kSize=5, lr = 0.004):
-    print(fileName)
+def loadModel(fileName, nPoints, nActuators, conv1Ch=8, kSize=5, lr = 0.001):
     checkpoint = torch.load(fileName)
     model = ctrlCNN(nPoints, nActuators, conv1Ch, kSize)
     model.load_state_dict(checkpoint['model'])

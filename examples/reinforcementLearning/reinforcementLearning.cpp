@@ -1,8 +1,12 @@
 #include <cmath>
+#include <iomanip>
+#include <ios>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <fstream>
+#include <filesystem>
 #include "control/constantCtrl/constantCtrl.hpp"
 #include "uasisi/core/module.hpp"
 #include "uasisi/core/orchestrator.hpp"
@@ -13,6 +17,7 @@
 #include "optimizer/randomOpt/randomOpt.hpp"
 #include "monitors/simpleLogger/simpleLogger.hpp"
 #include "actuators/constantAccelAct/constantAccelAct.hpp"
+#include "actuators/perfectAct/perfectAct.hpp"
 #include "modules/pythonWrapper/pythonWrapper.hpp"
 #include "physics/phillipsPhy/phillipsPhy.hpp"
 #include "uasisi/utils/pybindhelper.hpp"
@@ -20,6 +25,17 @@
 using namespace uasisi;
 
 int main(int argc, char* argv[]){
+
+    std::filesystem::create_directories("../results/models")
+
+    std::ostream nout(std::cout.rdbuf());
+    auto* coutOld = std::cout.rdbuf();
+    std::ofstream devNull("/dev/null");
+    std::cout.rdbuf(devNull.rdbuf());
+
+    nout << "====UASISI REINFOCEMENT LEARNING DEMO====\n\n";
+    nout << "Preparing first run (measuring actuator dynamics)...";
+
     zPts.reserve(NPTS + 2);
     zPts.push_back(-SPAN/2);
     double dz = SPAN/(NPTS + 1);
@@ -58,6 +74,8 @@ int main(int argc, char* argv[]){
     bool isFinished;
     size_t counter = 20;
     nSteps = 0;
+    nout << "DONE\n";
+    nout << "Running first simulation...";
 
     do{
         t+=STPSZ;
@@ -80,8 +98,21 @@ int main(int argc, char* argv[]){
 
     double tsettle = t;
     std::vector<double> upperMask = realLift1->SWData();
+    std::vector<double> liftRange;
+    liftRange.reserve(lowerMask.size());
+    for(size_t i = 0; i < lowerMask.size(); i++){
+        if(upperMask[i] - lowerMask[i] == 0){
+            liftRange.push_back(1e-8);
+        } else {
+            liftRange.push_back(upperMask[i] - lowerMask[i]);
+        }
+    }
+    nout << "DONE\n";
+    nout << "Maximum actuator settling time:\t" << std::fixed << std::setprecision(3) << tsettle;
+    nout << "s (" << std::to_string(nSteps) << " steps)\n";
 
     //---------------------------------------------SECOND RUN: TRAIN MODEL
+    nout << "Preparing second run (training)...\n";
     std::string fPath = "../results/reinforcementLearningTRAIN.h5";
     Orchestrator orch2;
     orch2.createModule("randomOpt", "opt", 0, [&lowerMask, &upperMask, &tsettle](IModule* mod){
@@ -94,11 +125,12 @@ int main(int argc, char* argv[]){
         optPtr->setZOut(zPts);
         optPtr->setMask(lowerMask, upperMask);
         optPtr->setPointRange(size_t(NACTS/2), NACTS*2);
-        optPtr->setUpdatePeriod(tsettle*4);
+        optPtr->setUpdatePeriod(BATCHESPERTARGET*UPDR*STPSZ);
+        optPtr->setBaselineSigma(2.0);
         optPtr->setIType(interpType::CSP);
     });
     orch2.createModule("pythonWrapper", "ctrl2", 1, pythonWrapperConfig2);
-    orch2.createModule("constantAccelAct", "act2", 2, constantAccelActConfig2);
+    orch2.createModule("perfectAct", "act2", 2, perfectActConfig2);
     orch2.createModule("phillipsPhy", "phy2", 3, phillipsPhyConfig2);
     orch2.createModule("simpleLogger", "mon2", 4, simpleLogger2);
     orch2.configureModules();
@@ -113,9 +145,15 @@ int main(int argc, char* argv[]){
     py::object model = ctrlPtr->execCommandWithReturn("ctrlCNN(nPoints, nActuators)", modelConfig);
 
     PythonConfigDict optimizerConfig;
-    optimizerConfig.setConfigDouble("lr", 0.01);
+    optimizerConfig.setConfigDouble("lr", 0.001);
     optimizerConfig.setConfigObject("params", model.attr("parameters")());
     py::object optimizer = ctrlPtr->execCommandWithReturn("torch.optim.Adam(params, lr=lr)", optimizerConfig);
+    
+    py::module_ torchMod = py::module_::import("torch");
+    py::object pyLiftRange = torchMod.attr("Tensor")(py::cast(liftRange));
+    PythonConfigDict liftRangeConfig;
+    liftRangeConfig.setConfigObject("liftRange", pyLiftRange);
+    ctrlPtr->execCommand("uasisiConfig.liftRange = liftRange", liftRangeConfig);
         
     PythonConfigDict initConfig;
     initConfig.setConfigObject("model", model);
@@ -130,18 +168,25 @@ int main(int argc, char* argv[]){
     orch2.connectSystem();
     orch2.init();
     t = 0.0;
+    
+    nout << "DONE\n";
+    nout << "Running second simulation...\n";
 
-    for(size_t i = 0; i < nSteps*NUPDSTRAIN + 1; i++){
+    for(size_t i = 0; i < UPDR*NUPDSTRAIN + 1; i++){
         t+=STPSZ;
         orch2.step(t, STPSZ);
+        printProgress(nout, i/(static_cast<double>(UPDR*NUPDSTRAIN)), i+1, UPDR);
     }
-
+    nout << "\n";
     PythonConfigDict saveConfig;
     saveConfig.setConfigObject("model", model);
     saveConfig.setConfigObject("optimizer", optimizer);
     saveConfig.setConfigString("fileName", "../results/models/trainedModel.pth"); //Is this relative path correct?
     ctrlPtr->execCommand("saveModel(model, optimizer, fileName)", saveConfig);
+    nout << "Training done, model saved in ../results/models/trainedModel.pth \n";
     //-------------------------------THIRD RUN: TEST MODEL
+    nout << "Preparing third run (static target test)...\n";
+    nout << "Loading model from ../results/models/trainedModel.pth \n";
     fPath = "../results/reinforcementLearningTEST.h5";
     Orchestrator orch3;
     orch3.createModule("randomOpt", "opt", 0, [&lowerMask, &upperMask, &tsettle](IModule* mod){
@@ -154,11 +199,11 @@ int main(int argc, char* argv[]){
         optPtr->setZOut(zPts);
         optPtr->setMask(lowerMask, upperMask);
         optPtr->setPointRange(size_t(NACTS/2), NACTS*2);
-        optPtr->setUpdatePeriod(tsettle*4);
+        optPtr->setUpdatePeriod(tsettle);
         optPtr->setIType(interpType::CSP);
     });
     orch3.createModule("pythonWrapper", "ctrl", 1, pythonWrapperConfig3);
-    orch3.createModule("constantAccelAct", "act", 2, constantAccelActConfig2);
+    orch3.createModule("constantAccelAct", "act", 2, constantAccelActConfig3);
     orch3.createModule("phillipsPhy", "phy", 3, phillipsPhyConfig2);
     orch3.createModule("simpleLogger", "mon", 4, simpleLogger2);
     orch3.configureModules();
@@ -187,9 +232,14 @@ int main(int argc, char* argv[]){
     orch3.init();
     t = 0.0;
 
+    nout << "Running third simulation...\n";
+
     for(size_t i = 0; i < nSteps*NUPDSTEST; i++){
         t+=STPSZ;
         orch3.step(t, STPSZ);
+        printProgress(nout, i/(static_cast<double>(nSteps*NUPDSTEST)), i+1, 0);
     }
 
+    nout << "\n";
+    std::cout.rdbuf(coutOld);
 }
