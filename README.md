@@ -57,13 +57,27 @@ A UASISI simulation case is comprised by an orchestrator, a set of modules, and 
 
 **Required:**
 
-- 
-- 
+- C++17
+- CMake 3.15+
+- Eigen3 3.3+
+- GSL
+- HDF5
 
-**Optional:**
+**As submodules**
 
-- 
-- 
+-yaml-cpp
+-HighFive
+
+**For use with python:**
+
+- Python 3.8+
+- pybind11
+
+**For python h5 viewer**
+
+- h5py
+- numpy
+- matplotlib
 
 ## Installation
 
