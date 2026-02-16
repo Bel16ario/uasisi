@@ -17,16 +17,8 @@ A UASISI simulation case is comprised by an orchestrator, a set of modules, and 
 - Generic and specialized module base classes
 - Module registration system
 
-## Architecture
-
-<!-- Add later -->
-
-
 ## Modules
 
-
-<!-- A table. The pipes and dashes are the syntax.
-     The "|---|---|" line is required — it separates the header from the rows. -->
 
 | **Name** | **Description** |
 |------|-------------|
@@ -49,11 +41,9 @@ A UASISI simulation case is comprised by an orchestrator, a set of modules, and 
 | simpleLogger | Connects to every available signal in the simulation and generates `.hd5` log files. A visualizer `tools/hd5viewer.py` is also provided|
 |------|-------------|
 | pythonWrapper | Allows interpreting python code and facilitating communication with other modules (see `examples/reinforcementLearning` for an example)|
+|------|-------------|
 
 ## Dependencies
-
-<!-- List what needs to be installed before building.
-     **word** makes it bold. -->
 
 **Required:**
 
@@ -65,8 +55,8 @@ A UASISI simulation case is comprised by an orchestrator, a set of modules, and 
 
 **As submodules**
 
--yaml-cpp
--HighFive
+- yaml-cpp
+- HighFive
 
 **For use with python:**
 
@@ -96,6 +86,10 @@ make
 ```
 
 ### Python Support (pythonWrapper)
+
+Python is supported through the pythonWrapper module. A template `.py` file is provided in `/modules/modules/pythonWrapper/template.py`. This wrapper can execute code from scripts or string literals. KWArgs can passed through an auxiliary PythonConfigDict class. Communication between the base C++ layer and the python interpreter can be carried out through pybind11 embedded python objects as well as the provided input and output dictionary translation methods. To interact with the rest of the modules, a main `.py` script can be provided with defined functions `step(t, dt, inputs)` and `init(inputs)`. In this case, `inputs` is a dictionary containing signal data and both functions should return a corresponding `outputs` signal dictionary. Additional kwargs can be implemented as needed. The `reinforcementLearning` example provided in this repo is a good example of how to integrate python code into UASISI.
+
+It should be noted that UASISI does not yet support multi-threading and as such, only one python interpreter can be alive at any given moment. In practice this means that users should be careful when implementing multiple pythonWrapper modules as the scope might be shared between them.
 
 ## Project Structure
 
