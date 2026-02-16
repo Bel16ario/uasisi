@@ -10,6 +10,11 @@ cmake-build-*/
 *.dll
 *.exe
 
+echo ".cache/" >> .gitignore
+git add .gitignore
+git commit -m "Add .cache to gitignore"
+git push
+
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
