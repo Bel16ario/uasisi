@@ -26,7 +26,7 @@ using namespace uasisi;
 
 int main(int argc, char* argv[]){
 
-    std::filesystem::create_directories("../results/models")
+    std::filesystem::create_directories("../results/models");
 
     std::ostream nout(std::cout.rdbuf());
     auto* coutOld = std::cout.rdbuf();

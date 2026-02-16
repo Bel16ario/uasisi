@@ -85,6 +85,7 @@ void phillipsPhyConfig(IModule* mod){
     phyPtr->setIType(interpType::LIN);
 
     phyPtr->setZOut(zOut);
+    phyPtr->setNSWPoints(200);
     phyPtr->updateFConds(fConds);
 }
 

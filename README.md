@@ -85,6 +85,16 @@ cmake ..
 make
 ```
 
+### Running UASISI 
+
+With the current CMAKE configuration, building the project will create two executables for both provided examples. These examples will create results files in a `/results` dir. These results can be visualized using the provided python viewer in `/tools`.
+
+```bash
+cd tools
+python hd5viewer.py ../results/simpleRunResults.h5
+```
+
+
 ### Python Support (pythonWrapper)
 
 Python is supported through the pythonWrapper module. A template `.py` file is provided in `/modules/modules/pythonWrapper/template.py`. This wrapper can execute code from scripts or string literals. KWArgs can passed through an auxiliary PythonConfigDict class. Communication between the base C++ layer and the python interpreter can be carried out through pybind11 embedded python objects as well as the provided input and output dictionary translation methods. To interact with the rest of the modules, a main `.py` script can be provided with defined functions `step(t, dt, inputs)` and `init(inputs)`. In this case, `inputs` is a dictionary containing signal data and both functions should return a corresponding `outputs` signal dictionary. Additional kwargs can be implemented as needed. The `reinforcementLearning` example provided in this repo is a good example of how to integrate python code into UASISI.
