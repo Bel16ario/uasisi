@@ -217,6 +217,21 @@ else()
     )
 endif()
 
+add_executable(simpleRun
+    examples/simpleRun/simpleRun.cpp
+)
+
+if(TARGET uasisi_modules)
+    target_link_libraries(simpleRun
+        uasisi_core
+        uasisi_modules
+    )
+else()
+    target_link_libraries(simpleRun
+        uasisi_core
+    )
+endif()
+
 # ============================================================================
 # INSTALLATION
 # ============================================================================
