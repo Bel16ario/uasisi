@@ -31,7 +31,7 @@ using namespace uasisi;
 #define SPAN 6.0
 #define STPSZ 0.001
 #define UPDR 400
-#define NUPDSTRAIN 20000
+#define NUPDSTRAIN 1000
 #define NUPDSTEST 30
 #define BATCHESPERTARGET 1
     

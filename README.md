@@ -4,7 +4,7 @@ UASISI is an extensible signal based simulation framework with features to facil
 
 ## Overview
 
-Unlike generic simulation platforms which are often highly interpreted, UASISI modules are written directly in C++. This allows the framework more freedom in the modules that it can implement and specifically, it makes interacting with external systems more streamlined. For example, the pythonWrapper module, as the name suggests, supports the execution of python code in various formats which opens the door to easy machine learning exploration with well documented python packages, amongst a plethora of other ready-made libraries. Another example of a situation where UASIS could prove very useful is in coupling with external solvers such as openFOAM.
+Unlike generic simulation platforms which are often highly interpreted, UASISI modules are written directly in C++. This allows the framework more freedom in the modules that it can implement and specifically, it makes interacting with external systems more streamlined. For example, the pythonWrapper module, as the name suggests, supports the execution of python code in various formats which opens the door to easy machine learning exploration with well documented python packages, amongst a plethora of other ready-made libraries. Another example of a situation where UASISI could prove very useful is in coupling with external solvers such as openFOAM.
 
 A UASISI simulation case is comprised by an orchestrator, a set of modules, and the appropriate communication channels linking everything together. The orchestrator is responsible for creating, configuring and connecting modules as well as manually initializing and stepping through each module. Orchestrators are instantiated and controlled from main `.cpp` files (see `/examples/simpleRun` for a practical example). Communication between modules is carried out via unique pointers to data structures owned by the orchestrator. 
 
@@ -58,7 +58,7 @@ A UASISI simulation case is comprised by an orchestrator, a set of modules, and 
 - yaml-cpp
 - HighFive
 
-**For use with python:**
+**C++ dependencies to use with python:**
 
 - Python 3.8+
 - pybind11
@@ -76,7 +76,11 @@ A UASISI simulation case is comprised by an orchestrator, a set of modules, and 
 git clone --recurse-submodules https://github.com/Bel16ario/uasisi.git
 cd uasisi
 ```
-
+ 
+If you forgot to clone it with dependencies, run this instead to get the submodules:
+```bash
+git submodule update --init --recursive
+```
 ### Build
 
 ```bash
