@@ -67,6 +67,10 @@ def dictToTorch(data):  # Meant to run on each signal dict
 
 def computeReward(tLift, rLift, z):
     totalError = torch.trapezoid((tLift - rLift).abs(), z)
+    (tSlope,) = torch.gradient(tLift, spacing=(z,))
+    (rSlope,) = torch.gradient(rLift, spacing=(z,))
+    slopeError = torch.trapezoid((tSlope - rSlope).abs(), z)
+    totalError += slopeError
     reward = -totalError
     return totalError, reward
 

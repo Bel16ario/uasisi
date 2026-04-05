@@ -342,7 +342,7 @@ private:
 inline void FlightConditions::compThetaAndP(){
     if(this->altitude <= 11000.0){
         this->theta0 = 288.15 - 0.0065*this->altitude;
-        this->P0 = 101325.0 * std::pow((this->theta0 / 288.15), (-9.80665 / 1.865825));
+        this->P0 = 101325.0 / std::pow((this->theta0 / 288.15), (-9.80665 / 1.865825));
     } else{
         this->theta0 = 216.65;
         this->P0 = 101325.0 * 0.22336 * std::exp(-9.80665 * (this->altitude - 11000.0) / 62189.3825);
