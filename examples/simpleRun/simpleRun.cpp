@@ -22,9 +22,9 @@ void constantCtrlConfig(IModule* mod){
         throw std::runtime_error("Problem casting from IModule class");
     }
 
-    std::vector<double> ctrlCoords = {-3.0, 0.0, 3.0};
-    std::vector<double> ctrlData = {toRad(5.0), toRad(0.0), toRad(5.0)};
-    std::vector<double> actCoords = {-3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0};
+    std::vector<double> ctrlCoords = {-3.0, -2.0, -1.0, 1.0, 2.0, 3.0};
+    std::vector<double> ctrlData = {toRad(0.0), toRad(0.0), toRad(0.0), toRad(0.0), toRad(0.0), toRad(0.0)};
+    std::vector<double> actCoords = {-3.0, -2.0, -1.0, 1.0, 2.0, 3.0};
 
     ctrlPtr->setIType(interpType::LIN);
     ctrlPtr->setDType(DataType::DOB);
@@ -40,13 +40,13 @@ void constantAccelActConfig(IModule* mod){
         throw std::runtime_error("Problem casting from IModule class");
     }
 
-    std::vector<double> actCoords = {-3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0};
-    std::vector<double> maxPos = {toRad(5.0), toRad(5.0), toRad(5.0), toRad(5.0), toRad(5.0), toRad(5.0), toRad(5.0)};
-    std::vector<double> maxVel = {0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
-    std::vector<double> maxAccel = {0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2};
-    std::vector<double> centerPos = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    std::vector<double> theta = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    std::vector<double> omega = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    std::vector<double> actCoords = {-3.0, -2.0, -1.0, 1.0, 2.0, 3.0};
+    std::vector<double> maxPos = {toRad(5.0), toRad(5.0), toRad(5.0), toRad(5.0), toRad(5.0), toRad(5.0)};
+    std::vector<double> maxVel = {0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
+    std::vector<double> maxAccel = {0.2, 0.2, 0.2, 0.2, 0.2, 0.2};
+    std::vector<double> centerPos = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    std::vector<double> theta = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    std::vector<double> omega = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     std::vector<double> zOut(200);
     double dz = 6.0 / 199.0;
     for(size_t i = 0; i < zOut.size(); i++){
@@ -62,7 +62,7 @@ void constantAccelActConfig(IModule* mod){
     actPtr->setCenterPos(centerPos);
     actPtr->setTheta(theta);
     actPtr->setOmega(omega);
-    actPtr->setThickness(0.05);
+    actPtr->setThickness(0.1);
     actPtr->setAddThickness(true);
 
 }

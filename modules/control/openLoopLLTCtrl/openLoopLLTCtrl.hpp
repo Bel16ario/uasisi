@@ -29,6 +29,7 @@ class OpenLoopLLTCtrl : public IControl{
 
     void setZ(const std::vector<double>& zNew);
     void setActCoords(const std::vector<double>& zNew);
+    void setNSWPoints(size_t nNew);
 
     void setVInf(double vInfNew);
     void setRho(double rhoNew);
@@ -44,15 +45,17 @@ class OpenLoopLLTCtrl : public IControl{
 
     private:
 
+    void translateDomain();
     void computeTheta();
-    void computeConstants();
-    void computeK1();
     void computeK2();
     
     std::string name = "openLoopLLTCtrl";
         
     std::vector<double> z;
+    std::vector<double> phiZ;
+    std::vector<double> phi;
     std::vector<double> actCoords;
+    size_t nSWPoints;
 
     double vInf;
     double rho;
@@ -68,11 +71,16 @@ class OpenLoopLLTCtrl : public IControl{
     std::vector<double> thetaMax;
     std::vector<double> thetaCenter;
     
+    std::vector<double> targetLiftPhi;
+    
     DataType dType = DataType::DOB;
     interpType iType;
 
     bool zIsSet = false;
+    bool phiIsSet = false;
+    bool domainIsSet = false;
     bool actCoordsAreSet = false;
+    bool nSWPointsIsSet = false;
     bool vInfIsSet = false;
     bool rhoIsSet = false;
     bool spanIsSet = false;

@@ -274,7 +274,7 @@ void PhillipsPhy::translateDomain(){
     this->phiZ.reserve(this->nSWPoints + 2);
     double zCenter = (this->zOut[0] +  this->zOut.back()) * 0.5; //goes without saying that the coordinates should be ordered
     double r = std::abs(this->zOut.back() - zCenter);
-    double dPhi = M_PI / (nSWPoints + 1);
+    double dPhi = M_PI / (this->nSWPoints + 1);
     this->phiZ.push_back(zCenter + r);
     for(size_t i = 1; i < this->nSWPoints + 1; i++){
         this->phi.push_back(i*dPhi);

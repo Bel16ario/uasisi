@@ -966,6 +966,10 @@ std::vector<T> interpolate(const std::vector<double>& z, const std::vector<T>& d
         gsl_spline_init(spline, z.data(), data.data(), z.size());
 
         for(double val : zp){
+            if(val < z.front() || val > z.back()){
+                std::cout << "WARNING: interpolation point " << val << " outside range [" << z.front() << ", " << z.back() << "], clamping" << std::endl;
+                val = std::max(z.front(), std::min(z.back(), val));
+            }
             nData.push_back(gsl_spline_eval(spline, val, acc));
         }
 

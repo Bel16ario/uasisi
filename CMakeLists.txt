@@ -232,6 +232,21 @@ else()
     )
 endif()
 
+add_executable(openLoopLLT
+    examples/openLoopLLTControl/openLoopLLTControl.cpp
+)
+
+if(TARGET uasisi_modules)
+    target_link_libraries(openLoopLLT
+        uasisi_core
+        uasisi_modules
+    )
+else()
+    target_link_libraries(openLoopLLT
+        uasisi_core
+    )
+endif()
+
 # ============================================================================
 # INSTALLATION
 # ============================================================================

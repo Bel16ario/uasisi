@@ -1,11 +1,13 @@
 #include "openLoopLLTCtrl.hpp"
+#include "uasisi/core/types.hpp"
+#include <algorithm>
 #include <iostream>
 #include <stdexcept>
 #include <cmath>
 
 namespace uasisi{
 
-double trapz(const std::vector<double>& x, const std::vector<double>& y);
+double trapz2(const std::vector<double>& x, const std::vector<double>& y);
 std::vector<double> threePointDiff(const std::vector<double>& x, const std::vector<double>& y);
 
 OpenLoopLLTCtrl::OpenLoopLLTCtrl(){
@@ -19,7 +21,7 @@ void OpenLoopLLTCtrl::init() {
     if(this->isSet){
         throw std::runtime_error("Module already initialized");
     }
-    bool dataIsSet = (this->vInfIsSet && this->rhoIsSet && this->chordsIsSet && this->zlAngleIsSet && this->clSlopeIsSet && this->thetaMaxIsSet && this->thetaCenterIsSet && this->spanIsSet);
+    bool dataIsSet = (this->vInfIsSet && this->rhoIsSet && this->chordsIsSet && this->zlAngleIsSet && this->clSlopeIsSet && this->thetaMaxIsSet && this->thetaCenterIsSet && this->spanIsSet && this->nSWPointsIsSet);
     if(!this->zIsSet || !dataIsSet || !this->dTypeIsSet || !this->iTypeIsSet || !this->actCoordsAreSet){
         throw std::runtime_error("Error, Open Loop LLT control Module not fully setup");
     }
@@ -27,13 +29,10 @@ void OpenLoopLLTCtrl::init() {
         throw std::runtime_error("Module connections have not been validated yet");
     }
 
-    if(this->actCoords.size() > this->z.size() || this->z.size() < 4 || this->z.size() % 2){
+    if(this->actCoords.size() > this->z.size() || this->z.size() < 4 || this->z.size() % 2 || this->actCoords.size() > this->nSWPoints || this->nSWPoints < 4 || this->nSWPoints % 4){
         throw std::runtime_error("Coordinate Error");
     }
     if(this->z.size() != this->chords.size() || this->z.size() != this->zlAngle.size() || this->z.size() != this->clSlope.size() || this->z.size() != this->thetaMax.size() || this->z.size() != this->thetaCenter.size()){
-        throw std::runtime_error("Size mismatch");
-    }
-    if(this->z.size() != this->targetLift->size()){
         throw std::runtime_error("Size mismatch");
     }
     if(this->vInf < 0 || this->rho <= 0 || this->span <= 0){
@@ -44,12 +43,19 @@ void OpenLoopLLTCtrl::init() {
             throw std::runtime_error("Points in vector are not ordered");
         }
     }
+    if(this->span != (this->z.back() - this->z.front())){
+        throw std::runtime_error("Invalid span");
+    }
     for(size_t i = 1; i < this->actCoords.size(); i++){
         if(this->actCoords[i] < this->actCoords[i-1]){
             throw std::runtime_error("Points in vector are not ordered");
         }
     }
-    this->theta.resize(this->z.size());
+    if(this->actCoords.front() < this->z.front() || this->actCoords.back() > this->z.back()){
+        throw std::runtime_error("Actuators outside wing");
+    }
+    this->theta.resize(this->nSWPoints);
+    this->translateDomain();
     this->computeK2();
     this->computeTheta();
 
@@ -142,6 +148,14 @@ void OpenLoopLLTCtrl::setActCoords(const std::vector<double>& zNew){ //Should ch
     this->actCoordsAreSet = true;
 }
 
+void OpenLoopLLTCtrl::setNSWPoints(size_t nNew){
+    if(this->isSet || this->isConnected){
+        throw std::runtime_error("Module Already connected");
+    }
+    this->nSWPoints = nNew;
+    this->nSWPointsIsSet = true;
+}
+
 void OpenLoopLLTCtrl::setVInf(double vInfNew){
     if(this->isSet || this->isConnected){
         throw std::runtime_error("Module Already connected");
@@ -215,25 +229,85 @@ void OpenLoopLLTCtrl::setIType(const interpType& t){
 }
 
 void OpenLoopLLTCtrl::computeTheta(){
-    std::vector<double> circ, k1, dCirc;
-    circ.resize(this->z.size());
-    k1.resize(this->z.size());
-    for(size_t i = 0; i < this->z.size(); i++){
-        circ[i] = (*this->targetLift)[i] / (this->rho * this->vInf);
+    if(!this->domainIsSet && !this->phiIsSet){
+        throw std::runtime_error("Domain not translated yet");
+    }
+    this->targetLiftPhi = interpolate(this->targetLift->coords(), this->targetLift->SWData(), this->phiZ, getInterpType(this->iType));
+    std::vector<double> circ, k1, dCirc, ddCirc, itgrd, itgrl;
+    circ.resize(this->nSWPoints);
+    k1.resize(this->nSWPoints);
+    itgrd.resize(this->nSWPoints);
+    itgrl.resize(this->nSWPoints);
+    for(size_t i = 0; i < this->nSWPoints; i++){
+        circ[i] = targetLiftPhi[i] / (this->rho * this->vInf);
         k1[i] = 2*circ[i] / (this->clSlope[i]*this->vInf * this->chords[i]);
     }
-    dCirc = threePointDiff(this->z, circ);
-    double itgrl = 0;
-    for(size_t i = 0; i < this->z.size(); i++){
-        this->theta[i] = this->k1[i] + this->zlAngle[i] + this->k2*itgrl;
+    dCirc = threePointDiff(this->phi, circ);
+    ddCirc = threePointDiff(this->phi, dCirc);
+    for(size_t i = 0; i < this->nSWPoints; i++){
+        for(size_t j = 0; j < this->nSWPoints; j++){
+            if(j == i){
+                itgrd[j] = (-ddCirc[i])/std::sin(phi[i]);
+                continue;
+            }
+            itgrd[j] = (dCirc[j] - dCirc[i])/(std::cos(phi[j]) - std::cos(phi[i]));
+        }
+        itgrl[i] = trapz2(this->phi, itgrd);
     }
+    for(size_t i = 0; i < this->nSWPoints; i++){
+        this->theta[i] = k1[i] + this->zlAngle[i] + this->k2*itgrl[i];
+        if(theta[i] > this->thetaCenter[i] + this->thetaMax[i]){
+            theta[i] = this->thetaCenter[i] + this->thetaMax[i];
+        } else if(theta[i] < this->thetaCenter[i] - this->thetaMax[i]){
+            theta[i] = this->thetaCenter[i] - this->thetaMax[i];
+        }
+    }
+    std::vector<double> phiZRev = this->phiZ;
+    std::vector<double> thetaRev = this->theta;
+    std::reverse(phiZRev.begin(), phiZRev.end());
+    std::reverse(thetaRev.begin(), thetaRev.end());
+    this->targetGeometryDOB->set(this->actCoords, interpolate(phiZRev, thetaRev, this->actCoords, getInterpType(this->iType)));
 }
 
 void OpenLoopLLTCtrl::computeK2(){
-    this->k2 = 1 / (4*M_PI*this->vInf);
+    this->k2 = this->span / (2*M_PI*this->vInf);
 }
 
+void OpenLoopLLTCtrl::translateDomain(){
+
+    if(!this->zIsSet || this->z.size() < 4 || !this->nSWPointsIsSet){
+        throw std::runtime_error("z vector needs to be set before computing the domain");
+    }
+    if(this->phiIsSet || this->domainIsSet){
+        throw std::runtime_error("Phi vector is already set");
+    }
+    if(!this->chordsIsSet || !this->zlAngleIsSet || !this->clSlopeIsSet || !this->thetaMaxIsSet || !this->thetaCenterIsSet){
+        throw std::runtime_error("Data needs to be set first");
+    }
+    if(!this->isConnected){
+        throw std::runtime_error("Validate connections first to make sure the data does not change");
+    }
+    this->phi.reserve(this->nSWPoints);
+    this->phiZ.reserve(this->nSWPoints);
+    double dPhi = M_PI / this->nSWPoints;
+    double zCenter = (this->z[0] +  this->z.back()) * 0.5;
+    for(size_t i = 0; i<this->nSWPoints; i++){
+        this->phi.push_back((i+0.5)*dPhi);
+        this->phiZ.push_back(this->span*0.5*std::cos(this->phi[i]));
+    }
+    this->phiIsSet = true;
+    this->chords = interpolate(this->z, this->chords, this->phiZ, getInterpType(this->iType));
+    this->zlAngle = interpolate(this->z, this->zlAngle, this->phiZ, getInterpType(this->iType));
+    this->clSlope = interpolate(this->z, this->clSlope, this->phiZ, getInterpType(this->iType));
+    this->thetaMax = interpolate(this->z, this->thetaMax, this->phiZ, getInterpType(this->iType));
+    this->thetaCenter = interpolate(this->z, this->thetaCenter, this->phiZ, getInterpType(this->iType));
+    this->domainIsSet = true;
+
+}
+
+
 std::vector<double> threePointDiff(const std::vector<double>& x, const std::vector<double>& y){
+
     if(x.size() != y.size() || x.size() < 3){
         throw std::runtime_error("Size mismatch");
     }
@@ -252,7 +326,7 @@ std::vector<double> threePointDiff(const std::vector<double>& x, const std::vect
     return result;
 }
 
-double trapz(const std::vector<double>& x, const std::vector<double>& y){
+double trapz2(const std::vector<double>& x, const std::vector<double>& y){
 
     if(x.size() != y.size() || x.size() < 4){
         throw std::runtime_error("vector size error");
