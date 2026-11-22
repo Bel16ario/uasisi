@@ -213,10 +213,14 @@ public:
     double                          getChord() const {return this->chord;}
     void                            setChord(double c){this->chord = c;}
     point                           getAttatchmentPoint() const {return this->attatchmentPoint;}
-    void                            setAttatchmentPoint(point p){this->attatchmentPoint = p;}
+    void                            setAttatchmentPoint(const point& p){this->attatchmentPoint = p;}
     void                            setPoints(const std::vector<point>& pVec){this->points = pVec;}
     point                           getPoint(int id) const;
-    void                            pushPoint(point p){this->points.push_back(p);}
+    void                            pushPoint(const point& p){this->points.push_back(p);}
+	void							setCAlpha(double nCAlpha){this->cAlpha = nCAlpha;}
+	double							getCAlpha() const {return cAlpha;}
+	void							setC0(double nC0){this->c0 = nC0;}
+	double							getC0() const {return c0;}
 
     int                             check(); //add later. check no repeated idx and points in correct order
     void                            heal(); //order points / maybe idx
@@ -230,6 +234,9 @@ private:
     std::vector<point>              points;
     double                          chord;
     point                           attatchmentPoint;
+
+	double							cAlpha = 2*M_PI;
+	double							c0 = 0.0;
 
     bool                            hasName = false;
     bool                            isOk = false;

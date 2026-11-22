@@ -36,6 +36,8 @@ set(UASISI_SKIP_MODULES "" CACHE STRING "Semicolon-separated list of modules to 
 find_package(GSL REQUIRED)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
+find_package(yaml-cpp REQUIRED)
+
 # Include directories
 include_directories(
     ${PROJECT_SOURCE_DIR}/include
@@ -51,6 +53,7 @@ include_directories(
 add_library(uasisi_core
     src/core/orchestrator.cpp
     src/io/config.cpp
+	src/io/runConfig.cpp
 )
 
 target_link_libraries(uasisi_core
@@ -58,6 +61,7 @@ target_link_libraries(uasisi_core
     Eigen3::Eigen
     GSL::gsl
     GSL::gslcblas
+	yaml-cpp::yaml-cpp
 )
 
 # ============================================================================
@@ -205,6 +209,9 @@ message(STATUS "DEBUG: TARGET uasisi_modules exists = $<TARGET_EXISTS:uasisi_mod
 add_executable(reinforcementLearning
     examples/reinforcementLearning/reinforcementLearning.cpp
 )
+
+add_executable(testULLT examples/testULLT/testULLT.cpp)
+target_link_libraries(testULLT uasisi_core uasisi_modules)
 
 if(TARGET uasisi_modules)
     target_link_libraries(reinforcementLearning

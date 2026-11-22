@@ -3,19 +3,39 @@
 
 #include "uasisi/core/module.hpp"
 #include "uasisi/core/types.hpp"
-#include "uasisi/io/config.hpp"
+#include <cmath>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <Eigen/Dense>
 
+using MapM = Eigen::Map<Eigen::MatrixXd>;
+using MapCM = Eigen::Map<const Eigen::MatrixXd>;
+
 namespace uasisi{
-//It is recommended for zOut to be phi-linspaced. The first and last elements of zOut must correspond to the tips of the wing and will be ommited from computation
-double trapz(const std::vector<double>& x, const std::vector<double>& y);
-double trapzProduct(const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& z);
-bool checkEdges(const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& z, double tol);
+double trapz(const Eigen::VectorXd& x, const Eigen::VectorXd& y);
+double trapzProduct(const Eigen::VectorXd& x, const Eigen::VectorXd& y, const Eigen::VectorXd& z);
+
+enum class IntegratorScheme{Euler, ExpEuler, ZOH, Heun, RK4, RFK45};
 
 struct ULLTConfig{
+	size_t nPts = 101;
+	double span = 10.0;
+	double rho = 1.225;
 
+	Eigen::MatrixX3d psiInit;
+	Eigen::MatrixXd aWag;
+	Eigen::MatrixXd lamWag;	
+	Eigen::MatrixXd chiInit;
+	Eigen::MatrixXd aGen;
+	Eigen::MatrixXd lamGen;	
+	Eigen::MatrixXd xiInit;
+
+	double du = 0;
+
+	double cRef = 1.0;
+
+	IntegratorScheme integrator = IntegratorScheme::ExpEuler;
 };
 
 class ULLTPhy : public IPhysics{
@@ -25,113 +45,94 @@ class ULLTPhy : public IPhysics{
     ULLTPhy();
     ~ULLTPhy() override = default;
 
-	void configure(ULLTConfig config);
+	void configure(const ULLTConfig& config);
 
     void init() override;
     std::vector<SignalInfo> declareSignals() override;
     void validateConnections() override;
 
-    void connectOutputDouble(const std::string& name, SpanwiseVec<double>* x) override; 
-    void connectOutputScalar(const std::string& name, double* x) override;
-    void connectInputDouble(const std::string& name, const SpanwiseVec<double>* x) override;
-    void connectInputAirfoil(const std::string& name, const SpanwiseVec<airfoil>* x) override;
+    void connectOutputDouble(const std::string& nName, SpanwiseVec<double>* x) override; 
+    void connectOutputScalar(const std::string& nName, double* x) override;
+    void connectInputScalar(const std::string& nName, const double* x) override;
+    void connectInputDouble(const std::string& nName, const SpanwiseVec<double>* x) override;
+    void connectInputAirfoil(const std::string& nName, const SpanwiseVec<airfoil>* x) override;
     
     void step(double t, double dt) override;
-    void updateFConds(const FlightConditions& fCondsNew); //CAN change flight conditions during simulation but needs to reinit module
-    void refreshZ();
-    void refreshData();
-    void computeRe();
-    void obtainPolars(); // For now just return constant values
 
     const std::string& getName() const override{return this->name;}
 
-    void setZOut(const std::vector<double>& zNew);
-    void setAlpha0(const SpanwiseVec<double>& alphaNew);
-    void setChord(const SpanwiseVec<double>& chordNew);
-    void setIType(const interpType& tNew);
-    void setFoil(const SpanwiseVec<airfoil>& foilNew);
-    void setTwist(const SpanwiseVec<double>& twistNew);
-    void setDefaultFoil(const std::string& nameNew);
-    void setDefaultTwist(double twistNew);
-    void setDefaultChord(double chordNew);
-    void setTolerance(double tolNew);
-    void setNPoints(size_t nNew);
-    void setNSWPoints(size_t nNew);
-
     private:
 
-    void translateDomain();
-    void generateFij();
-    void computeCoeffs();
-    void computeA();
-    void computeB();
-    void computeLift();
-    void readZTwist();
-    void readZGeo();
-    void readTwist();
-    void readGeo();
+	void calcEta();
+	void calcLift();
+	void calcG();
+	void calcDu();
+	void calcDwy(const Eigen::VectorXd& nWy);
 
+	void algebraic(const Eigen::VectorXd& x, Eigen::VectorXd& wy, Eigen::VectorXd& alphaE, Eigen::VectorXd& lc);
+	void rates(const Eigen::VectorXd& x, Eigen::VectorXd& dx);
+	void integrate(double ds);
+
+	void stepEuler(double ds);
+	void stepExpEuler(double ds);
+	void stepZOH(double ds);
+	void stepHeun(double ds);
+	void stepRK4(double ds);
+	void stepRFK45(double ds);
+
+	double tolerance = 1e-10;
     std::string name = "uLLTPhy";
-   
-    double span;
-    double tolerance = 1e-10;
-    std::vector<double> chord;
-    std::vector<double> lSlope;
-    std::string defaultFoil = "NACA2412";
-    double defaultTwist = 0.0;
-    double defaultChord = 1.0;
     size_t nPoints = 100;
-    size_t nSWPoints;
 
-    FlightConditions fConds;
-    std::vector<double> Re;
+	IntegratorScheme integrator = IntegratorScheme::Euler;
+	size_t nWag = 0;
+	size_t nGen = 0;
+	Eigen::VectorXd X;
 
-    Eigen::MatrixXd Fij; //Im not sure if there is a way to have a non dynamic matrix. The size is only dependant on the number of points. Maybe with the constructor? Sadly, I do not think it is possible
-    Eigen::MatrixXd invFij;
-    Eigen::VectorXd alpha0;
-    Eigen::VectorXd alpha0L;
-    Eigen::VectorXd A;
-    Eigen::VectorXd B;
+	MapM chiOf(Eigen::VectorXd& x) const { return MapM(x.data(), this->nPoints, this->nWag);}
+	MapCM chiOf(const Eigen::VectorXd& x) const { return MapCM(x.data(), this->nPoints, this->nWag);}
+	MapM xiOf(Eigen::VectorXd& x) const { return MapM(x.data() + this->nPoints*this->nWag, this->nPoints, this->nGen);}
+	MapCM xiOf(const Eigen::VectorXd& x) const { return MapCM(x.data() + this->nPoints*this->nWag, this->nPoints, this->nGen);}
+	MapM psiOf(Eigen::VectorXd& x) const { return MapM(x.data() + this->nPoints*(this->nWag+this->nGen), this->nPoints, 3);}
+	MapCM psiOf(const Eigen::VectorXd& x) const { return MapCM(x.data() + this->nPoints*(this->nWag+this->nGen), this->nPoints, 3);}
 
-    
-    std::vector<double> zTwist;
-    std::vector<double> zGeo;
-    std::vector<double> phi;
-    std::vector<double> phiZ;
-    std::vector<double> zOut; //Must be set even if only scalar outputs are used
+	double span = 10.0;
 
-    std::vector<double> interpTwist;
-    std::vector<airfoil> interpGeo;
-    Eigen::VectorXd interpTwistEigen;
+	double cRef = 1.0;
+	double s = 0.0;
 
-    bool fCondsIsSet = false; //The class has defaults so this check should just print a warning
-    bool zOutIsSet = false;
-    bool zIsSet = false; //This module will not read z after init until told to. This is for efficiency
-    bool dataIsSet = false;
-    bool ReIsSet = false;
-    bool PhiIsSet = false;
-    bool polarsAreSet = false;
-    bool spanIsSet = false;
-    bool FijIsSet = false;
-    bool iTypeIsSet = false;
-    bool alpha0IsSet = false;
-    bool chordIsSet = false;
-    bool foilIsSet = false;
-    bool twistIsSet = false;
-    bool AIsSet = false;
-    bool BIsSet = false;
-    bool nSWPointsIsSet = false;
+	double u = 100.0; //Default airspeed
+	double du = 0.0;
+	double rAoA = 0.0; //Default root AoA
+	double rho = 1.225;
 
-    bool domainIsSet = false;
+	double uPrev = 100.00;
+	double sPrev = 0.0;
+
+	double q = 6125;
+	
+	Eigen::VectorXd z;
+	Eigen::VectorXd y;
+
+	Eigen::VectorXd c; 			//Chord
+	Eigen::VectorXd cc;			//C_ref normalized by 
+	Eigen::MatrixX2d v;			//Inputs
+	Eigen::VectorXd cAlpha;		//Lift coefficient slope
+	Eigen::VectorXd c0;			//Zero angle lift
+	Eigen::MatrixXd aWag;		//Wagner A constants
+	Eigen::MatrixXd lamWag;		//Wagner B constants
+	Eigen::VectorXd dr;			//Rotation axis semichord normalized coordinate
+	Eigen::MatrixXd eta;		//Influence matrix
+	Eigen::MatrixXd aGen;		//Gennaretti A constants
+	Eigen::MatrixXd lamGen;		//Gennaretti B constants
+	
+	Eigen::VectorXd dWy;
+	Eigen::VectorXd lc;
+	Eigen::VectorXd l;
+
     bool isConnected = false;
-    bool rTwistIsConnected = false;
-    bool rGeometryIsConnected = false;
-    bool rLiftIsConnected = false;
-    bool rTLiftIsConnected = false;
-    bool rRMomentIsConnected = false;
     bool isSet = false;
-
-    bool airfoilProvided = false;
+    bool isConfigured = false;
 
     DataType dType = DataType::DOB;
     interpType iType;
@@ -139,7 +140,8 @@ class ULLTPhy : public IPhysics{
 	const double* airspeed = nullptr;
 	const double* rootAoA = nullptr;
 
-    const SpanwiseVec<double>* realTwist = nullptr;
+    const SpanwiseVec<double>* realPitchAccel = nullptr;
+    const SpanwiseVec<double>* realPlungeAccel = nullptr;
     const SpanwiseVec<airfoil>* realGeometry = nullptr;
 
     SpanwiseVec<double>* realLift = nullptr;
@@ -147,6 +149,72 @@ class ULLTPhy : public IPhysics{
     double* realRollingMoment = nullptr;
 
 };
+
+inline Eigen::VectorXd cosineCoords(size_t nPts){ //Includes tips
+	Eigen::VectorXd result(nPts);
+	for(size_t i = 0; i<nPts - 1; i++){
+		result(i) = (i*M_PI)/(nPts - 1);
+	}
+	result(nPts - 1) = M_PI;
+	return result;
+}
+
+inline Eigen::VectorXd vecToEigen(const std::vector<double>& vec, size_t nPts){
+	if(nPts != vec.size()) throw std::runtime_error("Cannot change number of stations specified at this point");
+	Eigen::VectorXd result(vec.size());
+	for(size_t i = 0; i<vec.size(); i++){
+		result(i) = vec[i];
+	}
+	return result;
+}
+
+inline Eigen::VectorXd airfoilVecToEigenChord(const SpanwiseVec<airfoil>& vec, size_t nPts){
+	if(nPts != vec.size()) throw std::runtime_error("Cannot change number of stations specified at this point");
+	Eigen::VectorXd result(vec.size());
+	for(size_t i = 0; i<vec.size(); i++){
+		result(i) = vec[i].getChord();
+	}
+	return result;
+}
+
+inline Eigen::VectorXd airfoilVecToEigenCAlpha(const SpanwiseVec<airfoil>& vec, size_t nPts){
+	if(nPts != vec.size()) throw std::runtime_error("Cannot change number of stations specified at this point");
+	Eigen::VectorXd result(vec.size());
+	for(size_t i = 0; i<vec.size(); i++){
+		result(i) = vec[i].getCAlpha();
+	}
+	return result;
+}
+
+inline Eigen::VectorXd airfoilVecToEigenC0(const SpanwiseVec<airfoil>& vec, size_t nPts){
+	if(nPts != vec.size()) throw std::runtime_error("Cannot change number of stations specified at this point");
+	Eigen::VectorXd result(vec.size());
+	for(size_t i = 0; i<vec.size(); i++){
+		result(i) = vec[i].getC0();
+	}
+	return result;
+}
+
+inline Eigen::VectorXd airfoilVecToEigenDr(const SpanwiseVec<airfoil>& vec, size_t nPts){
+	if(nPts != vec.size()) throw std::runtime_error("Cannot change number of stations specified at this point");
+	Eigen::VectorXd result(vec.size());
+	for(size_t i = 0; i<vec.size(); i++){
+		result(i) = vec[i].getAttatchmentPoint().x;
+	}
+	return result;
+}
+
+inline std::vector<double> eigenToVec(const Eigen::VectorXd& vec, size_t nPts){
+	if(nPts != vec.size()) throw std::runtime_error("Cannot change number of stations specified at this point");
+	std::vector<double> result;
+	result.reserve(nPts);
+	for(size_t i = 0; i<vec.size(); i++){
+		result.push_back(vec(i));
+	}
+	return result;
+}
+
+
 
 }
 
