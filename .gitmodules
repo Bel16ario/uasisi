@@ -4,3 +4,6 @@
 [submodule "third_party/HighFive"]
 	path = third_party/HighFive
 	url = https://github.com/BlueBrain/HighFive.git
+[submodule "third_party/libxfoil"]
+	path = third_party/libxfoil
+	url = https://github.com/montagdude/libxfoil

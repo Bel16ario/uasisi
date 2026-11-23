@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.15)
-project(uasisi VERSION 1.0.0 LANGUAGES CXX)
+project(uasisi VERSION 1.0.0 LANGUAGES CXX C Fortran)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-add_compile_options(-Wno-attributes)
+add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wno-attributes)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -47,11 +47,29 @@ include_directories(
 )
 
 # ============================================================================
+# LIBXFOIL
+# ============================================================================
+
+set(XFOIL_DIR ${PROJECT_SOURCE_DIR}/third_party/libxfoil/src)
+file(GLOB XFOIL_SRC_C   ${XFOIL_DIR}/*.c)
+file(GLOB XFOIL_SRC_F90 ${XFOIL_DIR}/*.f90)
+file(GLOB XFOIL_SRC_F77 ${XFOIL_DIR}/*.f)
+ 
+add_library(xfoil STATIC ${XFOIL_SRC_C} ${XFOIL_SRC_F90} ${XFOIL_SRC_F77})
+set_source_files_properties(${XFOIL_SRC_F77} PROPERTIES COMPILE_OPTIONS "-fdefault-real-8;-std=legacy")
+set_source_files_properties(${XFOIL_SRC_F90} PROPERTIES COMPILE_OPTIONS "-std=legacy")
+set_target_properties(xfoil PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+    Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/fortran_modules)
+target_include_directories(xfoil PUBLIC ${XFOIL_DIR})
+
+# ============================================================================
 # CORE LIBRARY (Orchestrator, types, config)
 # ============================================================================
 
 add_library(uasisi_core
     src/core/orchestrator.cpp
+	src/core/xfoilWrapper.cpp
     src/io/config.cpp
 	src/io/runConfig.cpp
 )
@@ -62,6 +80,8 @@ target_link_libraries(uasisi_core
     GSL::gsl
     GSL::gslcblas
 	yaml-cpp::yaml-cpp
+	PRIVATE
+	xfoil
 )
 
 # ============================================================================
@@ -258,7 +278,7 @@ endif()
 # INSTALLATION
 # ============================================================================
 
-install(TARGETS uasisi_core
+install(TARGETS uasisi_core xfoil
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
 )
