@@ -1,13 +1,15 @@
 #include "uasisi/io/runConfig.hpp"
 #include "uasisi/core/xfoilWrapper.hpp"
 #include "uasisi/core/types.hpp"
+#include "uasisi/utils/linearPolarHelper.hpp"
 
 #include <limits>
 #include <cmath>
 
 namespace uasisi{
 
-AirfoilLinearParams getLinearParams(const airfoil& foil, double h, double u, double thresh){
+
+AirfoilLinearParams getLinearParams(const airfoil& foil, double h, double u, const PolarAnalysisConfig& config){
 
     FlightConditions flow;
     flow.setAltitude(h);
@@ -27,26 +29,7 @@ AirfoilLinearParams getLinearParams(const airfoil& foil, double h, double u, dou
     x.setFlow(Re, Ma);
     auto [alpha, cl] = x.polarLift(alphaMin, alphaMax, dAlpha);
 
-    return getLinearParamsFromPolar(alpha, cl, thresh);
-}
-
-AirfoilLinearParams getLinearParamsFromPolar(std::vector<double> alpha, std::vector<double> cl, double thresh){
-
-    if(alpha.size() != cl.size()) throw std::runtime_error("Cl and Alpha vectors do not match");
-    
-    double alpha0L;
-    size_t alpha0LIndex;
-    double dCl = std::numeric_limits<double>::max();
-    double dClNew;
-
-    for(size_t i = 0; i < alpha.size(); i++){
-        dClNew = std::abs(cl[i]);
-        if(dClNew < dCl){
-            alpha0L = alpha[i];
-            alpha0LIndex = i;
-            dCl = dClNew;
-        }
-    }
+    return getLinearParamsFromPolar(alpha, cl, config);
 }
 
 }

@@ -13,6 +13,7 @@
 #include <yaml-cpp/yaml.h>
 
 #include "uasisi/core/types.hpp"
+#include "uasisi/utils/linearPolarHelper.hpp"
 
 namespace uasisi {
 
@@ -21,14 +22,7 @@ enum class MotionType {TravellingWave, StandingWave, Uniform};
 enum class SpacingType {Linear, Cosine};
 enum class FitFavours{WAG, GEN, JOINT};
 
-
-struct AirfoilLinearParams{
-	double cAlpha;
-	double c0;
-	double alphaMinLinear;
-	double alphaMaxLinear;
-	bool converged;
-};
+AirfoilLinearParams getLinearParams(const airfoil& foil, double h, double u, const PolarAnalysisConfig& config);
 
 inline std::vector<double> interpWingParam(const SpanwiseVec<double>& param, const std::vector<double>& eta){
 	return interpolate(param.coords(), param.SWData(), eta, getInterpType(interpType::LIN));
@@ -37,12 +31,6 @@ inline std::vector<double> interpWingParam(const SpanwiseVec<double>& param, con
 inline std::vector<airfoil> interpWingAirfoil(const SpanwiseVec<airfoil>& foils, const std::vector<double>& eta){
 	return interpolate(foils.coords(), foils.SWData(), eta, getInterpType(interpType::LIN));
 }
-
-AirfoilLinearParams getLinearParams(const airfoil& foil, double h, double u, double thresh);
-
-AirfoilLinearParams getLinearParamsFromPolar(const std::vector<double>& alpha, const std::vector<double>& cl, double thresh);
-
-AirfoilLinearParams getIntesectionLinearLimits(const std::vector<AirfoilLinearParams>& params);
 
 
 //Config = struct. Definition = class

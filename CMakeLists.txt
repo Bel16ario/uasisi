@@ -72,6 +72,7 @@ add_library(uasisi_core
 	src/core/xfoilWrapper.cpp
     src/io/config.cpp
 	src/io/runConfig.cpp
+	src/utils/linearPolarHelper.cpp
 )
 
 target_link_libraries(uasisi_core
