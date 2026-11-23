@@ -1,5 +1,6 @@
 #include <cmath>
 #include <iostream>
+#include <ostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -22,9 +23,9 @@ void constantCtrlConfig(IModule* mod){
         throw std::runtime_error("Problem casting from IModule class");
     }
 
-    std::vector<double> ctrlCoords = {-3.0, -2.0, -1.0, 1.0, 2.0, 3.0};
-    std::vector<double> ctrlData = {toRad(0.0), toRad(0.0), toRad(0.0), toRad(0.0), toRad(0.0), toRad(0.0)};
-    std::vector<double> actCoords = {-3.0, -2.0, -1.0, 1.0, 2.0, 3.0};
+    std::vector<double> ctrlCoords = {-3.625, -2.0, -1.0, 1.0, 2.0, 3.625};
+    std::vector<double> ctrlData = {toRad(16.0), toRad(16.0), toRad(16.0), toRad(16.0), toRad(16.0), toRad(16.0)};
+    std::vector<double> actCoords = {-3.625, -2.0, -1.0, 1.0, 2.0, 3.625};
 
     ctrlPtr->setIType(interpType::LIN);
     ctrlPtr->setDType(DataType::DOB);
@@ -40,17 +41,17 @@ void constantAccelActConfig(IModule* mod){
         throw std::runtime_error("Problem casting from IModule class");
     }
 
-    std::vector<double> actCoords = {-3.0, -2.0, -1.0, 1.0, 2.0, 3.0};
-    std::vector<double> maxPos = {toRad(5.0), toRad(5.0), toRad(5.0), toRad(5.0), toRad(5.0), toRad(5.0)};
+    std::vector<double> actCoords = {-3.625, -2.0, -1.0, 1.0, 2.0, 3.625};
+    std::vector<double> maxPos = {toRad(20.0), toRad(20.0), toRad(20.0), toRad(20.0), toRad(20.0), toRad(20.0)};
     std::vector<double> maxVel = {0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
     std::vector<double> maxAccel = {0.2, 0.2, 0.2, 0.2, 0.2, 0.2};
     std::vector<double> centerPos = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     std::vector<double> theta = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     std::vector<double> omega = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     std::vector<double> zOut(200);
-    double dz = 6.0 / 199.0;
+    double dz = 7.25 / 199.0;
     for(size_t i = 0; i < zOut.size(); i++){
-        zOut[i] = -3 + i*dz;
+        zOut[i] = -3.625 + i*dz;
     }
     actPtr->setIType(interpType::LIN);
     
@@ -76,17 +77,23 @@ void phillipsPhyConfig(IModule* mod){
     std::vector<double> zOut(152);
     double dPhi = M_PI / 151;
     for(size_t i = 0; i < zOut.size(); i++){
-        zOut[zOut.size() - 1 - i] = 3*std::cos(i*dPhi);
+        zOut[zOut.size() - 1 - i] = 3.625*std::cos(i*dPhi);
     }
     FlightConditions fConds;
-    fConds.setVInf(point{166.0, 0.0, 0.0, 0});
+    fConds.setVInf(point{85, 0.0, 0.0, 0});
     fConds.setAltitude(1000.0);
-    
-    phyPtr->setIType(interpType::LIN);
 
+    SpanwiseVec<double> chordDist;
+    std::vector<double> chordcoords = {-3.625, 0, 3.625};
+    std::vector<double> chordLengths = {0.92, 1.84 , 0.92};
+    chordDist.set(chordcoords, chordLengths);
+
+    phyPtr->setIType(interpType::LIN);
+    
     phyPtr->setZOut(zOut);
     phyPtr->setNSWPoints(200);
     phyPtr->updateFConds(fConds);
+    phyPtr->setChord(chordDist);
 }
 
 
@@ -120,8 +127,8 @@ int main(int argc, char* argv[]){
     orch.connectSystem();
     orch.init();
 
-    double dt = 0.01;
-    double tMax = 10.0;
+    double dt = 0.1;
+    double tMax = 10;
     double t = 0;
 
     for(size_t i = 0; t < tMax; i++){

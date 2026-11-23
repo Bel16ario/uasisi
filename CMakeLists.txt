@@ -230,9 +230,6 @@ add_executable(reinforcementLearning
     examples/reinforcementLearning/reinforcementLearning.cpp
 )
 
-add_executable(testULLT examples/testULLT/testULLT.cpp)
-target_link_libraries(testULLT uasisi_core uasisi_modules)
-
 if(TARGET uasisi_modules)
     target_link_libraries(reinforcementLearning
         uasisi_core

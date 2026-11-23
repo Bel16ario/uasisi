@@ -1,9 +1,11 @@
 #include "openLoopLLTCtrl.hpp"
+#include "uasisi/core/module.hpp"
 #include "uasisi/core/types.hpp"
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
 #include <cmath>
+#include <string>
 
 namespace uasisi{
 
@@ -68,6 +70,7 @@ std::vector<SignalInfo> OpenLoopLLTCtrl::declareSignals(){
     reqSignals.reserve(1);
     reqSignals.push_back(SignalInfo("targetLift", DataType::DOB, SignalType::IN));
     reqSignals.push_back(SignalInfo("targetGeometry", DataType::DOB, SignalType::OUT));
+    reqSignals.push_back(SignalInfo("targetDownwash", DataType::DOB, SignalType::OUT));
 
     return reqSignals;
 }
@@ -77,7 +80,7 @@ void OpenLoopLLTCtrl::validateConnections(){
     if(!this->targetGeometryDOB){
         std::cout << "WARNING: output unconnected\n";
     } else {
-        if(this->outputs.size() != 1 || this->outputs[0].name() != "targetGeometry"){ 
+        if(this->outputs.size() > 2  || !(this->outputs[0].name() != "targetGeometry" || this->outputs[1].name() != "targetGeometry")) {
             throw std::runtime_error("Validation failed");
         }
     }
@@ -102,6 +105,11 @@ void OpenLoopLLTCtrl::connectOutputDouble(const std::string& name, SpanwiseVec<d
     }
     if(name == "targetGeometry"){
         this->targetGeometryDOB = x;
+        this->outputs.push_back(SignalInfo(name, DataType::DOB, SignalType::OUT));
+        std::cout << "Connected output: " << name << std::endl;
+    } 
+    else if (name == "targetDownwash") {
+        this->targetDownwash = x;
         this->outputs.push_back(SignalInfo(name, DataType::DOB, SignalType::OUT));
         std::cout << "Connected output: " << name << std::endl;
     } else {
@@ -233,14 +241,15 @@ void OpenLoopLLTCtrl::computeTheta(){
         throw std::runtime_error("Domain not translated yet");
     }
     this->targetLiftPhi = interpolate(this->targetLift->coords(), this->targetLift->SWData(), this->phiZ, getInterpType(this->iType));
-    std::vector<double> circ, k1, dCirc, ddCirc, itgrd, itgrl;
+    std::vector<double> circ, k1, dw, dCirc, ddCirc, itgrd, itgrl;
     circ.resize(this->nSWPoints);
     k1.resize(this->nSWPoints);
+    dw.resize(this->nSWPoints);
     itgrd.resize(this->nSWPoints);
     itgrl.resize(this->nSWPoints);
     for(size_t i = 0; i < this->nSWPoints; i++){
         circ[i] = targetLiftPhi[i] / (this->rho * this->vInf);
-        k1[i] = 2*circ[i] / (this->clSlope[i]*this->vInf * this->chords[i]);
+        k1[i] = ((circ[i]/this->vInf) + (this->clSlope[i]*this->zlAngle[i]))/this->clSlope[i];
     }
     dCirc = threePointDiff(this->phi, circ);
     ddCirc = threePointDiff(this->phi, dCirc);
@@ -250,12 +259,13 @@ void OpenLoopLLTCtrl::computeTheta(){
                 itgrd[j] = (-ddCirc[i])/std::sin(phi[i]);
                 continue;
             }
-            itgrd[j] = (dCirc[j] - dCirc[i])/(std::cos(phi[j]) - std::cos(phi[i]));
+            itgrd[j] = dCirc[j]/(std::cos(phi[i]) - std::cos(phi[j]));
         }
         itgrl[i] = trapz2(this->phi, itgrd);
+        dw[i] = -itgrl[i]/(4*M_PI);
     }
     for(size_t i = 0; i < this->nSWPoints; i++){
-        this->theta[i] = k1[i] + this->zlAngle[i] + this->k2*itgrl[i];
+        this->theta[i] = k1[i] + std::atan(dw[i]/this->vInf);
         if(theta[i] > this->thetaCenter[i] + this->thetaMax[i]){
             theta[i] = this->thetaCenter[i] + this->thetaMax[i];
         } else if(theta[i] < this->thetaCenter[i] - this->thetaMax[i]){
@@ -264,9 +274,12 @@ void OpenLoopLLTCtrl::computeTheta(){
     }
     std::vector<double> phiZRev = this->phiZ;
     std::vector<double> thetaRev = this->theta;
+    std::vector<double> dwRev = dw;
     std::reverse(phiZRev.begin(), phiZRev.end());
     std::reverse(thetaRev.begin(), thetaRev.end());
+    std::reverse(dwRev.begin(), dwRev.end());
     this->targetGeometryDOB->set(this->actCoords, interpolate(phiZRev, thetaRev, this->actCoords, getInterpType(this->iType)));
+    this->targetDownwash->set(this->z, interpolate(phiZRev, dwRev, this->z, getInterpType(this->iType)));
 }
 
 void OpenLoopLLTCtrl::computeK2(){

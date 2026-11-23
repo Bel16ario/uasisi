@@ -56,7 +56,7 @@ public:
 	std::vector<PolarPoint> polar(double alphaMin, double alphaMax, double dAlpha);
 
 	//Skips unconverged points. Returns alpha, cl
-	std::tuple<std::vector<double>> polarLift(double alphaMin, double alphaMax, double dAlpha);
+	std::tuple<std::vector<double>, std::vector<double>> polarLift(double alphaMin, double alphaMax, double dAlpha);
 
 private:
 

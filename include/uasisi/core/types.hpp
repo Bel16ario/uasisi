@@ -430,7 +430,7 @@ inline void airfoil::generate(size_t n){ //generates double the amount of points
                 gVector.push_back(std::atan(((2*maxCamber)/(maxCamberPos*maxCamberPos))*(maxCamberPos - tPoint.x)));
             } else {
                 tPoint.y = (maxCamber/((1 - maxCamberPos)*(1-maxCamberPos)))*(1.0  -2*maxCamberPos + 2*maxCamberPos*tPoint.x - tPoint.x*tPoint.x);
-                gVector.push_back(((2*maxCamber)/((1-maxCamberPos)*(1-maxCamberPos)))*(maxCamberPos - tPoint.x));
+                gVector.push_back(std::atan(((2*maxCamber)/((1-maxCamberPos)*(1-maxCamberPos)))*(maxCamberPos - tPoint.x)));
             }
             cPoints.push_back(tPoint);
         }

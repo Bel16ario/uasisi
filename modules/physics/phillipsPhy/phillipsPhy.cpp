@@ -255,8 +255,8 @@ void PhillipsPhy::obtainPolars(){//For dev purposes just return constant for now
     this->lSlope.resize(this->phiZ.size() - 2);
     this->alpha0L = Eigen::VectorXd::Zero(this->phiZ.size() - 2);
     for(size_t i = 0; i < this->lSlope.size(); i++){
-        this->lSlope[i] = 6.5317;
-        this->alpha0L(i) = -0.0375;
+        this->lSlope[i] = 6.76;
+        this->alpha0L(i) = 0;
     }
     this->polarsAreSet = true;
 
@@ -536,7 +536,7 @@ void PhillipsPhy::setChord(const SpanwiseVec<double>& chordNew){
     if(!this->domainIsSet || !this->iTypeIsSet){
         throw std::runtime_error("Domain must be set and iType must be specified");
     }
-    if(chordNew.size() < 4){
+    if(chordNew.size() < 2){
         throw std::runtime_error("Size error");
     }
     this->chord = uasisi::interpolate(chordNew.coords(), chordNew.SWData(), this->phiZ, getInterpType(this->iType));

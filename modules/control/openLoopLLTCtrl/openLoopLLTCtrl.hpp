@@ -95,6 +95,7 @@ class OpenLoopLLTCtrl : public IControl{
     bool isConnected = false;
 
     SpanwiseVec<double>* targetGeometryDOB = nullptr;
+    SpanwiseVec<double>* targetDownwash = nullptr;
     const SpanwiseVec<double>* targetLift = nullptr;
 };
 
