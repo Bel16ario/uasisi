@@ -30,7 +30,7 @@ double localSlope(const std::vector<double>& alpha, const std::vector<double>& c
 
 AirfoilLinearParams getLinearParamsFromPolar(const std::vector<double>& alpha, const std::vector<double>& cl, const PolarAnalysisConfig& config);
 
-AirfoilLinearParams getIntesectionLinearLimits(const std::vector<AirfoilLinearParams>& params);
+AirfoilLinearParams getIntersectionLinearLimits(const std::vector<AirfoilLinearParams>& params);
 
 
 }
